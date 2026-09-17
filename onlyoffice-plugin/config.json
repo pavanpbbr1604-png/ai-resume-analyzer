@@ -1,0 +1,17 @@
+{
+  "guid": "asc.{BE54D81C-9E9C-4340-A0E0-4740A8A9E66F}",
+  "name": "AI Resume Reviewer Plugin",
+  "version": "1.0.0",
+  "variations": [
+    {
+      "description": "AI Resume Suggestion Highlight & Quick Apply Plugin",
+      "url": "index.html",
+      "icons": ["icon.png"],
+      "isViewer": true,
+      "editorType": ["word"],
+      "initDataType": "text",
+      "initOnSelectionChanged": true,
+      "buttons": []
+    }
+  ]
+}

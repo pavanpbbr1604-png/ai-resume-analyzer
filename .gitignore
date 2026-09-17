@@ -1,0 +1,46 @@
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment and Secrets
+.env
+.env*.local
+backend/.env
+!backend/.env.example
+
+# Temporary Storage and Generated Uploads
+backend/storage/original/*
+!backend/storage/original/.gitkeep
+backend/storage/versions/*
+!backend/storage/versions/.gitkeep
+backend/storage/working/*
+!backend/storage/working/.gitkeep
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# Antigravity / Agent runtime artifacts
+.agents/
+.gemini/

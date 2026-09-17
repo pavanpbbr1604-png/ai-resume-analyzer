@@ -1,0 +1,51 @@
+<!doctype html>
+<html class="dark" lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LUMIER ANALYZER — Executive AI Resume & ATS Optimization Workspace</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://db.onlinewebfonts.com/c/5ac3fe7c6abd2f62067f266d89671492?family=HelveticaNowDisplay-Medium" rel="stylesheet" type="text/css"/>
+    <link href="https://db.onlinewebfonts.com/c/1aa3377e489837a26d019bba501e779d?family=HelveticaNowDisplayW01-Rg" rel="stylesheet" type="text/css"/>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=Hanken+Grotesk:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-background": "#e2e2e5",
+                        "on-surface": "#e2e2e5",
+                        "primary-container": "#ff5722",
+                        "surface": "#121416",
+                        "background": "#121416",
+                        "surface-dim": "#121416",
+                        "surface-container-low": "#1a1c1e",
+                        "surface-container": "#1e2022",
+                        "surface-container-high": "#282a2c",
+                        "surface-variant": "#333537",
+                        "outline-variant": "#2C3136",
+                        "primary": "#ff5722",
+                        "primary-light": "#ffb5a0",
+                        "error": "#ffb4ab"
+                    },
+                    fontFamily: {
+                        "label-caps": ["Space Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-md": ["Manrope"]
+                    }
+                }
+            }
+        }
+    </script>
+  </head>
+  <body class="bg-[#121416] text-[#e2e2e5] font-body-md min-h-screen flex flex-col overflow-hidden relative m-0 p-0">
+    <div id="root" class="flex flex-col h-screen w-screen overflow-hidden"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

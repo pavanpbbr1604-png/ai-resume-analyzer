@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { UploadCloud, Sparkles, FileText, ChevronDown, ChevronUp, Target, ShieldCheck } from 'lucide-react';
+
+export interface LeftUploadPanelHandle {
+  /** Focus the JD textarea so user can immediately type. */
+  focusJdInput: () => void;
+}
 
 interface LeftUploadPanelProps {
   onAnalyze: (file: File, jdText: string) => void;
@@ -10,18 +15,32 @@ interface LeftUploadPanelProps {
   hasJd?: boolean;
 }
 
-export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
+export const LeftUploadPanel = forwardRef<LeftUploadPanelHandle, LeftUploadPanelProps>(function LeftUploadPanel({
   onAnalyze,
   onLoadSample,
   isLoading,
   hasDocument,
   currentFilename,
   hasJd = false,
-}) => {
+}, ref) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [jdText, setJdText] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [showJdInput, setShowJdInput] = useState<boolean>(false);
+  const jdTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Expose focusJdInput so parent can call it (e.g., from No-JD popup "Go Back").
+  useImperativeHandle(ref, () => ({
+    focusJdInput: () => {
+      setShowJdInput(true);
+      setTimeout(() => {
+        if (jdTextareaRef.current) {
+          jdTextareaRef.current.focus();
+          jdTextareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 80);
+    },
+  }));
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -42,8 +61,8 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       if (file.name.endsWith('.docx') || file.name.endsWith('.pdf')) {
+        // Only store the file — user must click "Analyze Resume" to proceed.
         setSelectedFile(file);
-        onAnalyze(file, jdText);
       }
     }
   };
@@ -51,8 +70,10 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      // Only store the file — user must click "Analyze Resume" to proceed.
       setSelectedFile(file);
-      onAnalyze(file, jdText);
+      // Reset the input value so the same file can be re-selected if needed.
+      e.target.value = '';
     }
   };
 
@@ -84,7 +105,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
               </span>
             ) : (
               <span className="px-2 py-0.5 bg-[#ff9100]/15 text-[#ffb74d] border border-[#ff9100]/40 text-[9px] font-bold rounded-sm flex items-center gap-1">
-                <ShieldCheck size={10} /> STANDALONE ATS (NO JD)
+                <ShieldCheck size={10} /> STANDALONE ATS
               </span>
             )}
           </div>
@@ -132,14 +153,14 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
             <div className="flex justify-between items-center">
               <label className="font-label-caps text-[10px] text-[#e4beb4] font-bold flex items-center gap-1.5">
                 <Target size={12} className="text-[#ff5722]" />
-                TARGET JOB DESCRIPTION (PASTE TO UNLOCK ROLE MATCH & GAP ANALYSIS):
+                TARGET JOB DESCRIPTION:
               </label>
               {jdText && (
                 <button
                   onClick={() => setJdText('')}
                   className="text-[10px] font-label-caps text-[#8e9196] hover:text-[#ff5252] transition-colors"
                 >
-                  CLEAR JD (SWITCH TO STANDALONE ATS)
+                  CLEAR JD
                 </button>
               )}
             </div>
@@ -147,7 +168,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
               rows={3}
               value={jdText}
               onChange={(e) => setJdText(e.target.value)}
-              placeholder="Paste target job description here to check keyword match, missing skills, and interview prep roadmap..."
+              placeholder="Paste target job description here..."
               className="w-full bg-[#121416] text-[#e2e2e5] border border-[#2C3136] p-2 text-xs font-mono rounded-sm focus:border-[#ff5722] outline-none"
             />
             <div className="flex gap-2 items-center">
@@ -157,7 +178,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
                   onClick={() => onAnalyze(selectedFile, jdText)}
                   disabled={isLoading}
                 >
-                  {isLoading ? 'ANALYZING...' : jdText.trim() ? 'RUN TARGETED JD ANALYSIS →' : 'RE-CALCULATE STANDALONE ATS SCORE'}
+                  {isLoading ? 'ANALYZING...' : jdText.trim() ? 'RUN ROLE MATCH →' : 'UPDATE REVIEW'}
                 </button>
               ) : (
                 <button
@@ -169,7 +190,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
                 </button>
               )}
               <span className="text-[10px] text-[#8e9196] font-mono">
-                {jdText.trim() ? '✓ Role-specific ATS match & suggestions will be generated' : 'ⓘ Standalone ATS readiness score will be calculated'}
+                {jdText.trim() ? '✓ Targeted role match' : 'ⓘ General review'}
               </span>
             </div>
           </div>
@@ -194,7 +215,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
             AI Resume Analyzer & ATS Optimizer
           </h2>
           <p className="font-body-md text-xs sm:text-sm text-[#e4beb4] max-w-lg mx-auto leading-relaxed">
-            Drop your resume for an <strong className="text-white">Instant ATS Score</strong> with Line Improvements & Mistake Corrections. Add a target Job Description to unlock Role Match Scoring, Keyword Alignment, and a Tailored Interview Preparation Plan.
+            Upload your resume for an instant ATS score, formatting analysis, and line suggestions. Optionally add a job description for role matching.
           </p>
         </div>
 
@@ -211,7 +232,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
           >
             <ShieldCheck size={16} className={!jdText.trim() ? 'text-[#00C853]' : 'text-[#8e9196]'} />
             <span className="font-label-caps text-[11px] text-white font-bold tracking-wide">
-              UPLOAD ONLY RESUME
+              RESUME ONLY (GENERAL ATS)
             </span>
           </button>
           <button
@@ -228,7 +249,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
           >
             <Target size={16} className={jdText.trim() ? 'text-[#ff5722]' : 'text-[#8e9196]'} />
             <span className="font-label-caps text-[11px] text-white font-bold tracking-wide">
-              UPLOAD RESUME + JOB DESCRIPTION
+              RESUME + JOB DESCRIPTION
             </span>
           </button>
         </div>
@@ -240,10 +261,10 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
             <UploadCloud size={50} className="text-[#ff5722] group-hover:scale-110 transition-transform animate-pulse" />
             <div className="flex flex-col gap-1">
               <p className="font-headline-md text-base text-white font-bold">
-                {selectedFile ? selectedFile.name : 'Drag & Drop your Resume file (.DOCX, .PDF)'}
+                {selectedFile ? selectedFile.name : 'Upload Resume (.DOCX, .PDF)'}
               </p>
               <p className="font-label-caps text-xs text-[#e4beb4]">
-                or <span className="text-[#ff5722] underline underline-offset-2 font-bold">click to browse files</span> from your computer
+                or <span className="text-[#ff5722] underline underline-offset-2 font-bold">click to browse files</span>
               </p>
             </div>
             <input
@@ -262,15 +283,16 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
                 TARGET JOB DESCRIPTION (OPTIONAL):
               </label>
               <span className="text-[10px] font-mono text-[#8e9196]">
-                {jdText.trim() ? 'Targeted Mode' : 'Leave empty for Standalone ATS Score'}
+                {jdText.trim() ? 'Targeted Mode' : 'General ATS Mode'}
               </span>
             </div>
             <textarea
               id="target-jd-input"
+              ref={jdTextareaRef}
               rows={3}
               value={jdText}
               onChange={(e) => setJdText(e.target.value)}
-              placeholder="Optional: Paste target job description here to check keyword match & missing skills. If left blank, we will calculate your standalone ATS Resume Score."
+              placeholder="Paste target job description here (optional)..."
               className="w-full bg-[#121416] text-[#e2e2e5] border border-[#2C3136] p-3 text-xs font-mono leading-relaxed rounded-sm focus:border-[#ff5722] outline-none"
             />
           </div>
@@ -284,9 +306,9 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
               {isLoading ? (
                 'ANALYZING RESUME...'
               ) : jdText.trim() ? (
-                'START AI ROLE MATCH ANALYSIS (WITH JD) →'
+                'ANALYZE WITH JD →'
               ) : (
-                'CALCULATE ATS SCORE (NO JD) →'
+                'ANALYZE RESUME →'
               )}
             </button>
 
@@ -296,11 +318,11 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
               onClick={onLoadSample}
             >
               <Sparkles size={16} className="text-[#ff5722]" />
-              <span>TRY SAMPLE DEMO</span>
+              <span>TRY DEMO RESUME</span>
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-};
+});

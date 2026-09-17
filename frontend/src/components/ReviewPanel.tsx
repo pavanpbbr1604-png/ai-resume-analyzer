@@ -76,6 +76,41 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
   const matchedSkills = summary?.matched_skills || ['PYTHON', 'REACT', 'FASTAPI', 'SQL'];
   const missingSkills = summary?.missing_keywords || [];
 
+  /**
+   * Allow-list of domains we trust for learning resource URLs.
+   * Any URL not on this list will be replaced with a safe YouTube search URL.
+   * This prevents the LLM from injecting hallucinated/fabricated URLs into the UI.
+   */
+  const SAFE_URL_DOMAINS = [
+    'docs.python.org', 'developer.mozilla.org', 'fastapi.tiangolo.com',
+    'reactjs.org', 'react.dev', 'nodejs.org', 'redis.io', 'postgresql.org',
+    'use-the-index-luke.com', 'martinfowler.com', 'roadmap.sh',
+    'github.com', 'neetcode.io', 'en.wikipedia.org', 'docs.docker.com',
+    'kubernetes.io', 'aws.amazon.com', 'typescript-lang.org', 'typescriptlang.org',
+    'expressjs.com', 'youtube.com', 'geeksforgeeks.org', 'w3schools.com',
+    'docs.djangoproject.com', 'flask.palletsprojects.com', 'sqlalchemy.org',
+    'alembic.sqlalchemy.org', 'pydantic.dev', 'uvicorn.org',
+    'leetcode.com', 'hackerrank.com', 'cs.stanford.edu', 'web.dev',
+  ];
+
+  /**
+   * Returns the URL if it points to a trusted domain, otherwise returns
+   * a safe YouTube search URL for the given topic title.
+   */
+  const getSafeResourceUrl = (url: string, fallbackTitle: string): string => {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname.replace(/^www\./, '');
+      if (SAFE_URL_DOMAINS.some((d) => hostname === d || hostname.endsWith('.' + d))) {
+        return url;
+      }
+    } catch {
+      // invalid URL — fall through to YouTube search
+    }
+    const query = encodeURIComponent(`${fallbackTitle} tutorial guide`);
+    return `https://www.youtube.com/results?search_query=${query}`;
+  };
+
   const filteredSuggestions = suggestions.filter((s) => {
     if (filter === 'ALL') return true;
     if (filter === 'CRITICAL') return s.severity === 'CRITICAL' || s.severity === 'HIGH';
@@ -451,13 +486,13 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
                 ))}
               </div>
               <div className="mt-auto pt-2 border-t border-[#2C3136]/60 flex items-center justify-between gap-2 text-[10px] text-[#e4beb4]">
-                <span>Want to see missing keywords for a specific job?</span>
+                <span>Add a Job Description to check missing skills</span>
                 {onOpenJdInput && (
                   <button
                     onClick={onOpenJdInput}
-                    className="text-[#ff5722] hover:underline font-bold font-label-caps text-[10px] flex items-center gap-1 shrink-0"
+                    className="text-[#ff5722] hover:underline font-bold font-label-caps text-[10px] flex items-center gap-1 shrink-0 cursor-pointer"
                   >
-                    + ADD TARGET JD →
+                    + ADD JD →
                   </button>
                 )}
               </div>
@@ -476,7 +511,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
               {missingSkills.map((sk) => (
                 <span
                   key={sk}
-                  title="Missing requirement found in job description"
+                  title="Required by JD — Not found in resume"
                   className="px-2 py-0.5 border border-[#ff5252] text-[#ff8a80] font-label-caps text-[10px] bg-[#ff5252]/10 flex items-center gap-1 rounded-sm"
                 >
                   <span className="font-bold">✕</span> {sk}
@@ -499,9 +534,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
             }`}
             onClick={() => setActiveTab('suggestions')}
           >
-            {!hasJd
-              ? `LINE SUGGESTIONS & MISTAKES (${suggestions.length})`
-              : `JD MATCH SUGGESTIONS (${suggestions.length})`}
+            SUGGESTIONS ({suggestions.length})
           </button>
 
           <button
@@ -512,7 +545,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
             }`}
             onClick={() => setActiveTab('enhancer')}
           >
-            AI REWRITER
+            REWRITER
           </button>
 
           <button
@@ -527,7 +560,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
             }}
           >
             <BookOpen size={13} />
-            <span>INTERVIEW PREP PLAN</span>
+            <span>INTERVIEW PREP</span>
           </button>
         </div>
 
@@ -582,20 +615,20 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
               <ArrowLeft size={14} /> ← BACK TO SUGGESTIONS
             </button>
             <h3 className="font-headline-md text-md text-[#ffb5a0] flex items-center gap-2">
-              <Zap size={16} className="text-[#ff5722]" /> Action Verb Bullet Rewriter
+              <Zap size={16} className="text-[#ff5722]" /> Bullet Rewriter
             </h3>
             <textarea
               value={inputBullet}
               onChange={(e) => setInputBullet(e.target.value)}
-              placeholder="Paste weak bullet point here..."
+              placeholder="Paste a bullet point to improve with action verbs..."
               className="w-full h-24 bg-[#1a1c1e] text-[#e2e2e5] border border-[#2C3136] p-3 text-xs font-mono rounded-sm focus:border-[#ff5722] outline-none"
             />
             <button
               onClick={handleEnhanceBullet}
               disabled={isEnhancing || !inputBullet.trim()}
-              className="w-full bg-[#ff5722] text-white py-2 font-label-caps text-xs glow-orange hover:bg-opacity-90 transition-all"
+              className="w-full bg-[#ff5722] text-white py-2 font-label-caps text-xs glow-orange hover:bg-opacity-90 transition-all cursor-pointer font-bold"
             >
-              {isEnhancing ? 'ENHANCING...' : 'GENERATE ACTION VARIATIONS'}
+              {isEnhancing ? 'ENHANCING...' : 'REWRITE BULLET'}
             </button>
             {enhancedOptions.map((opt, idx) => (
               <div key={idx} className="border border-[#2C3136] bg-[#1a1c1e] p-3 text-xs text-[#00C853] font-mono leading-relaxed">
@@ -609,38 +642,13 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
         {/* Tab 3: Self-Study Interview Preparation Roadmap */}
         {activeTab === 'interview' && (
           <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1">
-            {!hasJd ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#181a1c] border border-[#2C3136] rounded-sm gap-4 my-auto">
-                <div className="w-14 h-14 rounded-full bg-[#ff5722]/15 border border-[#ff5722]/40 flex items-center justify-center text-[#ff5722]">
-                  <Target size={28} />
-                </div>
-                <div className="max-w-md flex flex-col gap-2">
-                  <h3 className="font-headline-md text-base text-white font-bold">
-                    Target Job Description Required
-                  </h3>
-                  <p className="text-xs text-[#e4beb4] leading-relaxed">
-                    To generate a tailored interview preparation curriculum with role-specific topics, questions, and curated learning sources, please add a Job Description.
-                  </p>
-                </div>
-                {onOpenJdInput && (
-                  <button
-                    onClick={onOpenJdInput}
-                    className="bg-[#ff5722] text-white px-5 py-2.5 rounded-sm font-label-caps text-xs font-bold glow-orange hover:bg-opacity-90 transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <Target size={14} />
-                    <span>+ ADD TARGET JD</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap justify-between items-center gap-2 pb-2 border-b border-[#2C3136]">
-                  <button
-                    onClick={() => setActiveTab('suggestions')}
-                    className="text-[#ff5722] hover:underline font-label-caps text-xs flex items-center gap-1"
-                  >
-                    <ArrowLeft size={14} /> ← BACK TO SUGGESTIONS
-                  </button>
+            <div className="flex flex-wrap justify-between items-center gap-2 pb-2 border-b border-[#2C3136]">
+              <button
+                onClick={() => setActiveTab('suggestions')}
+                className="text-[#ff5722] hover:underline font-label-caps text-xs flex items-center gap-1"
+              >
+                <ArrowLeft size={14} /> ← BACK TO SUGGESTIONS
+              </button>
 
                   <div className="flex items-center gap-2">
                     <button
@@ -679,7 +687,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
                       {interviewPlan.role_title} @ {interviewPlan.company}
                     </span>
                     <span className="px-2 py-0.5 bg-[#ff5722]/15 text-[#ffb5a0] border border-[#ff5722]/40 text-[10px] font-label-caps font-bold rounded-sm">
-                      {interviewPlan.timeline_overview}
+                      {interviewPlan.has_target_jd ? 'Role-Targeted Plan' : 'Resume-Based Plan'} · {interviewPlan.timeline_overview}
                     </span>
                   </div>
                   <p className="text-[11px] text-[#e4beb4] leading-relaxed">
@@ -778,7 +786,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
                                   >
                                     <div className="flex items-center justify-between gap-2">
                                       <a
-                                        href={src.url}
+                                        href={getSafeResourceUrl(src.url, src.title)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-white hover:text-[#ff5722] font-bold text-xs flex items-center gap-1.5 group"
@@ -869,7 +877,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
                       {interviewPlan.curated_free_resources.map((res, rIdx) => (
                         <a
                           key={rIdx}
-                          href={res.url}
+                          href={getSafeResourceUrl(res.url, res.title)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="bg-[#121416] p-2 border border-[#2C3136] rounded-sm flex flex-col hover:border-[#00C853] transition-colors group"
@@ -888,19 +896,17 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
             ) : (
               <div className="text-center py-10 flex flex-col items-center gap-3">
                 <BookOpen size={36} className="text-[#ff5722]" />
-                <div className="font-headline-md text-sm text-white">No Preparation Plan Generated Yet</div>
+                <div className="font-headline-md text-sm text-white">Interview Preparation Roadmap</div>
                 <button
                   onClick={handleFetchInterviewPlan}
-                  className="bg-[#ff5722] text-white px-4 py-2 text-xs font-label-caps font-bold glow-orange hover:bg-opacity-90 transition-all rounded-sm"
+                  className="bg-[#ff5722] text-white px-4 py-2 text-xs font-label-caps font-bold glow-orange hover:bg-opacity-90 transition-all rounded-sm cursor-pointer"
                 >
-                  GENERATE SELF-STUDY PREP ROADMAP →
+                  GENERATE PREP ROADMAP →
                 </button>
               </div>
             )}
-            </>
-          )}
-        </div>
-      )}
+          </div>
+        )}
       </div>
     </aside>
   );

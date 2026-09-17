@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar';
 import { WebDocumentViewer } from '../components/WebDocumentViewer';
 import { ReviewPanel } from '../components/ReviewPanel';
-import { LeftUploadPanel } from '../components/LeftUploadPanel';
+import { LeftUploadPanel, LeftUploadPanelHandle } from '../components/LeftUploadPanel';
 import { EditModal } from '../components/EditModal';
-import { UploadCloud, Target, ShieldCheck, X } from 'lucide-react';
+import { UploadCloud, Target, ShieldCheck, X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import {
   NormalizedDocument,
   AnalysisResultResponse,
@@ -109,6 +109,13 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
   const [showJdDrawer, setShowJdDrawer] = useState<boolean>(false);
   const [draftJdText, setDraftJdText] = useState<string>('');
 
+  // --- No-JD Popup state ---
+  const [showNoJdPopup, setShowNoJdPopup] = useState<boolean>(false);
+  const [pendingAnalysisFile, setPendingAnalysisFile] = useState<File | null>(null);
+
+  // Ref to the upload panel so popup "Go Back" can focus the JD textarea.
+  const uploadPanelRef = useRef<LeftUploadPanelHandle>(null);
+
   const activeTab: 'suggestions' | 'enhancer' | 'interview' =
     activeSidebarView === 'optimizer' ? 'suggestions' : activeSidebarView === 'rewriter' ? 'enhancer' : 'interview';
 
@@ -138,7 +145,14 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
         const file = e.dataTransfer.files[0];
         if (file.name.endsWith('.docx') || file.name.endsWith('.pdf')) {
-          handleAnalyze(file, currentJdText);
+          // If a JD is already present, analyze immediately (explicit user intent).
+          // Otherwise, show the No-JD popup to ask the user what they want.
+          if (currentJdText && currentJdText.trim()) {
+            handleAnalyze(file, currentJdText, true);
+          } else {
+            setPendingAnalysisFile(file);
+            setShowNoJdPopup(true);
+          }
         }
       }
     };
@@ -244,7 +258,25 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
     });
   };
 
-  const handleAnalyze = async (file: File, jdText: string) => {
+  /**
+   * Primary analysis entry point.
+   * When called from the upload panel and jdText is empty, shows the No-JD popup
+   * unless `continueWithoutJd` is explicitly true (e.g. popup confirmed).
+   */
+  const handleAnalyze = async (file: File, jdText: string, continueWithoutJd = false) => {
+    const hasJdInput = Boolean(jdText && jdText.trim());
+
+    // If no JD and not yet confirmed via popup, show popup.
+    if (!hasJdInput && !continueWithoutJd) {
+      setPendingAnalysisFile(file);
+      setShowNoJdPopup(true);
+      return;
+    }
+
+    // Close popup if open and clear pending file.
+    setShowNoJdPopup(false);
+    setPendingAnalysisFile(null);
+
     setIsLoading(true);
     setCurrentJdText(jdText);
     setDraftJdText(jdText);
@@ -279,6 +311,19 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
       runSampleDemo();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /** Popup "Go Back / Add JD" — closes popup and focuses JD textarea in upload panel. */
+  const handleNoJdGoBack = () => {
+    setShowNoJdPopup(false);
+    uploadPanelRef.current?.focusJdInput();
+  };
+
+  /** Popup "Continue Without JD" — runs standalone ATS analysis. */
+  const handleNoJdContinue = () => {
+    if (pendingAnalysisFile) {
+      handleAnalyze(pendingAnalysisFile, '', true);
     }
   };
 
@@ -451,6 +496,64 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
 
   return (
     <div className="app-container font-body-md bg-[#121416] text-[#e2e2e5] min-h-screen flex flex-col overflow-hidden relative">
+      {/* NO-JD CONFIRMATION POPUP */}
+      {showNoJdPopup && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNoJdPopup(false); }}
+        >
+          <div className="relative w-full max-w-md bg-[#1a1c1e] border border-[#2C3136] rounded-sm shadow-2xl flex flex-col gap-4 p-6 animate-fade-in">
+            {/* Close */}
+            <button
+              onClick={() => setShowNoJdPopup(false)}
+              className="absolute top-3 right-3 text-[#8e9196] hover:text-white transition-colors cursor-pointer"
+              aria-label="Close popup"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Icon + Heading */}
+            <div className="flex flex-col items-center gap-2.5 text-center">
+              <div className="w-12 h-12 rounded-full bg-[#ff9100]/15 border border-[#ff9100]/40 flex items-center justify-center">
+                <AlertTriangle size={24} className="text-[#ff9100]" />
+              </div>
+              <div>
+                <h2 className="font-headline-lg text-lg text-white font-bold tracking-tight">
+                  No Job Description Added
+                </h2>
+                <p className="text-xs text-[#e4beb4] mt-1.5 leading-relaxed max-w-sm mx-auto">
+                  Add a job description for role-targeted matching, or continue with a general ATS review.
+                </p>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2 mt-1">
+              <button
+                id="popup-go-back-btn"
+                onClick={handleNoJdGoBack}
+                className="w-full flex items-center justify-center gap-2 bg-[#1e2022] border border-[#ff5722] text-[#ff5722] py-2.5 rounded-sm font-label-caps text-xs font-bold hover:bg-[#ff5722]/10 transition-colors cursor-pointer"
+              >
+                <ArrowLeft size={14} />
+                + ADD JOB DESCRIPTION
+              </button>
+              <button
+                id="popup-continue-btn"
+                onClick={handleNoJdContinue}
+                className="w-full flex items-center justify-center gap-2 bg-[#ff5722] text-white py-2.5 rounded-sm font-label-caps text-xs font-bold glow-orange hover:bg-opacity-90 transition-all cursor-pointer"
+              >
+                <ShieldCheck size={14} />
+                CONTINUE WITH GENERAL REVIEW
+              </button>
+            </div>
+
+            <p className="text-center text-[10px] font-mono text-[#8e9196]">
+              You can add a Job Description anytime later in the workspace.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* GLOBAL DRAG & DROP OVERLAY */}
       {isGlobalDragOver && (
         <div className="fixed inset-0 z-50 bg-[#ff5722]/90 backdrop-blur-md flex flex-col items-center justify-center text-white border-4 border-dashed border-white p-8 animate-fade-in pointer-events-none">
@@ -485,6 +588,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
             /* FULL-PAGE DRAG & DROP SPACE WHEN NO DOCUMENT IS ACTIVE */
             <div className="w-full h-full flex flex-col border border-[#2C3136] bg-[#121416] rounded-sm overflow-hidden">
               <LeftUploadPanel
+                ref={uploadPanelRef}
                 onAnalyze={handleAnalyze}
                 onLoadSample={runSampleDemo}
                 isLoading={isLoading}
@@ -566,7 +670,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
                       rows={3}
                       value={draftJdText}
                       onChange={(e) => setDraftJdText(e.target.value)}
-                      placeholder="Paste target job description to switch to Role Match Mode (missing keywords & tailored changes)..."
+                      placeholder="Paste target job description here..."
                       className="w-full bg-[#121416] text-[#e2e2e5] border border-[#2C3136] p-2 text-xs font-mono rounded-sm focus:border-[#ff5722] outline-none"
                     />
                     <div className="flex items-center justify-between gap-2">
@@ -576,7 +680,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
                           disabled={isLoading}
                           className="bg-[#ff5722] text-white px-3 py-1.5 rounded-sm font-label-caps text-xs font-bold glow-orange hover:bg-opacity-90 transition-all cursor-pointer"
                         >
-                          {isLoading ? 'ANALYZING...' : draftJdText.trim() ? 'RUN TARGETED JD MATCH →' : 'UPDATE STANDALONE ATS SCORE'}
+                          {isLoading ? 'ANALYZING...' : draftJdText.trim() ? 'RUN ROLE MATCH →' : 'UPDATE REVIEW'}
                         </button>
                         {hasJd && (
                           <button
@@ -587,12 +691,12 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
                             disabled={isLoading}
                             className="bg-[#1e2022] border border-[#2C3136] text-[#8e9196] hover:text-[#ff5252] px-3 py-1.5 rounded-sm font-label-caps text-xs transition-colors cursor-pointer"
                           >
-                            CLEAR JD (RETURN TO STANDALONE ATS)
+                            CLEAR JD
                           </button>
                         )}
                       </div>
                       <span className="text-[10px] text-[#8e9196] font-mono">
-                        {draftJdText.trim() ? '✓ Compares resume against JD keywords' : 'ⓘ Standalone ATS readiness score'}
+                        {draftJdText.trim() ? '✓ Targeted role match' : 'ⓘ General review'}
                       </span>
                     </div>
                   </div>

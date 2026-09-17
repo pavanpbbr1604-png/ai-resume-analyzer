@@ -64,6 +64,22 @@ class SchedulePhase(BaseModel):
     focus_summary: str
     deliverables: List[str] = []
 
+class ResourceLink(BaseModel):
+    platform: str  # "YouTube", "GeeksforGeeks", "W3Schools", "Documentation"
+    title: str
+    url: str
+
+class SkillResourceItem(BaseModel):
+    skill: str
+    status: str = "detected"  # "detected" or "not_found_in_resume"
+    resources: List[ResourceLink] = []
+
+class InterviewQuestionItem(BaseModel):
+    question_id: str
+    question: str
+    context: str  # e.g. "Based on your Project: Scalable API"
+    category: str = "TECHNICAL_CONCEPT"  # "PROJECT_DEEP_DIVE", "TECHNICAL_CONCEPT", "SYSTEM_DESIGN"
+
 class InterviewPreparationPlan(BaseModel):
     plan_id: str
     role_title: str
@@ -74,3 +90,5 @@ class InterviewPreparationPlan(BaseModel):
     modules: List[StudyTopicModule] = []
     recommended_schedule: List[SchedulePhase] = []
     curated_free_resources: List[StudySource] = []
+    skill_resources: List[SkillResourceItem] = []
+    likely_interview_questions: List[InterviewQuestionItem] = []

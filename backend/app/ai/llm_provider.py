@@ -507,12 +507,46 @@ Respond ONLY with a valid JSON object matching this schema:
                     clean_raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
                     data = json.loads(clean_raw)
                     if isinstance(data, dict) and "modules" in data and len(data["modules"]) >= 2:
+                        data = self._sanitize_interview_plan_urls(data)
                         return InterviewPreparationPlan(**data)
                 except Exception as e:
                     logger.warning(f"Failed to parse Gemini interview plan JSON: {e}")
 
         # Fallback to rich mock provider
         return self.fallback_provider.generate_interview_plan(doc, jd)
+
+    def _sanitize_interview_plan_urls(self, data: dict) -> dict:
+        """Replace unverified LLM-generated URLs with YouTube search fallbacks."""
+        from urllib.parse import urlparse, quote
+        SAFE_DOMAINS = {
+            'docs.python.org', 'developer.mozilla.org', 'fastapi.tiangolo.com',
+            'reactjs.org', 'react.dev', 'nodejs.org', 'redis.io', 'postgresql.org',
+            'use-the-index-luke.com', 'martinfowler.com', 'roadmap.sh',
+            'github.com', 'neetcode.io', 'en.wikipedia.org', 'docs.docker.com',
+            'kubernetes.io', 'aws.amazon.com', 'typescriptlang.org', 'typescript-lang.org',
+            'expressjs.com', 'youtube.com', 'geeksforgeeks.org', 'w3schools.com',
+            'docs.djangoproject.com', 'flask.palletsprojects.com', 'sqlalchemy.org',
+            'alembic.sqlalchemy.org', 'pydantic.dev', 'uvicorn.org',
+            'leetcode.com', 'hackerrank.com', 'cs.stanford.edu', 'web.dev',
+        }
+
+        def safe_url(url: str, title: str) -> str:
+            try:
+                hostname = urlparse(url).hostname or ''
+                hostname = hostname.replace('www.', '').lower()
+                if hostname in SAFE_DOMAINS or any(hostname.endswith('.' + d) for d in SAFE_DOMAINS):
+                    return url
+            except Exception:
+                pass
+            query = quote(f"{title} interview preparation tutorial")
+            return f"https://www.youtube.com/results?search_query={query}"
+
+        for mod in data.get('modules', []):
+            for src in mod.get('learning_sources', []):
+                src['url'] = safe_url(src.get('url', ''), src.get('title', 'Software Engineering'))
+        for res in data.get('curated_free_resources', []):
+            res['url'] = safe_url(res.get('url', ''), res.get('title', 'Software Engineering'))
+        return data
 
     def call_gemini_raw(self, prompt: str) -> Optional[str]:
         """Direct text helper for Gemini generation."""

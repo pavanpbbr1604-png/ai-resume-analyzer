@@ -199,21 +199,38 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
         </div>
 
         {/* Dual Mode Indicator Pills */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#121416] p-3 border border-[#2C3136] rounded-sm">
-          <div className="flex items-start gap-2.5 p-2 bg-[#181a1c] border border-[#2C3136] rounded-sm">
-            <ShieldCheck size={18} className="text-[#00C853] shrink-0 mt-0.5" />
-            <div>
-              <div className="font-label-caps text-[11px] text-white font-bold">UPLOAD ONLY RESUME</div>
-              <div className="text-[11px] text-[#8e9196] leading-tight">Instant Standalone ATS Score + Line Improvements & Mistake Corrections.</div>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5 p-2 bg-[#181a1c] border border-[#2C3136] rounded-sm">
-            <Target size={18} className="text-[#ff5722] shrink-0 mt-0.5" />
-            <div>
-              <div className="font-label-caps text-[11px] text-white font-bold">UPLOAD RESUME + JOB DESCRIPTION</div>
-              <div className="text-[11px] text-[#8e9196] leading-tight">Role Match Score + JD Keyword Alignment + Tailored Interview Preparation Plan.</div>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#121416] p-2 border border-[#2C3136] rounded-sm">
+          <button
+            type="button"
+            onClick={() => setJdText('')}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-sm border transition-all cursor-pointer text-left ${
+              !jdText.trim()
+                ? 'bg-[#181a1c] border-[#00C853]/60 shadow-[0_0_10px_rgba(0,200,83,0.15)]'
+                : 'bg-[#181a1c]/60 border-[#2C3136] opacity-60 hover:opacity-100'
+            }`}
+          >
+            <ShieldCheck size={16} className={!jdText.trim() ? 'text-[#00C853]' : 'text-[#8e9196]'} />
+            <span className="font-label-caps text-[11px] text-white font-bold tracking-wide">
+              UPLOAD ONLY RESUME
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('target-jd-input');
+              if (el) el.focus();
+            }}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-sm border transition-all cursor-pointer text-left ${
+              jdText.trim()
+                ? 'bg-[#181a1c] border-[#ff5722]/60 shadow-[0_0_10px_rgba(255,87,34,0.15)]'
+                : 'bg-[#181a1c]/60 border-[#2C3136] opacity-60 hover:opacity-100'
+            }`}
+          >
+            <Target size={16} className={jdText.trim() ? 'text-[#ff5722]' : 'text-[#8e9196]'} />
+            <span className="font-label-caps text-[11px] text-white font-bold tracking-wide">
+              UPLOAD RESUME + JOB DESCRIPTION
+            </span>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -249,6 +266,7 @@ export const LeftUploadPanel: React.FC<LeftUploadPanelProps> = ({
               </span>
             </div>
             <textarea
+              id="target-jd-input"
               rows={3}
               value={jdText}
               onChange={(e) => setJdText(e.target.value)}

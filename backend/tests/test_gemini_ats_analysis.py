@@ -124,11 +124,8 @@ def test_llm_provider_json_parser():
         ]
     }
 
-    summary, suggestions = provider._parse_json_to_result(raw_json, doc)
+    suggestions = provider._parse_json_to_suggestions(raw_json, doc)
 
-    assert summary.overall_match_score == 77.5
-    assert summary.matched_skills == ["Python", "FastAPI", "PostgreSQL"]
-    assert summary.missing_keywords == ["Docker", "Kubernetes", "AWS"]
     assert len(suggestions) == 1
 
     # Check that location was resolved to the real paragraph

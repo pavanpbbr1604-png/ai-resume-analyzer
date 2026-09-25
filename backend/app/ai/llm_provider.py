@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import httpx
@@ -15,15 +16,18 @@ from app.schemas.suggestion import (
 from app.schemas.analysis import (
     AnalysisSummary,
     InterviewPreparationPlan,
+    ResumeChatMessage,
+    ResumeChatResponse,
 )
 from app.ai.provider_interface import AIProviderInterface
 from app.ai.mock_provider import MockAIProvider
-from app.ai.prompts import SYSTEM_PROMPT, STANDALONE_ATS_PROMPT, INTERVIEW_PLAN_PROMPT
+from app.ai.prompts import SYSTEM_PROMPT, STANDALONE_ATS_PROMPT, INTERVIEW_PLAN_PROMPT, RESUME_CHAT_SYSTEM_PROMPT
 from app.document.location_mapper import LocationMappingEngine
 from app.analysis.deterministic_analyzer import analyze_deterministic
 from app.analysis.deterministic_scoring import run_deterministic_analysis
 from app.analysis.job_parser import parse_job_description
 from app.analysis.semantic_analyzer import analyze_semantic
+
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +255,7 @@ Respond ONLY with a valid JSON object matching the exact format:
                     requires_user_confirmation=bool(item.get("requires_user_confirmation", True)),
                     location=loc,
                     location_confidence=loc_conf,
+                    location_label=loc.location_label or str(item.get("location_label", "Resume Content")),
                     original_text=orig_text,
                     suggested_text=str(item.get("suggested_text", orig_text)),
                     reasoning=str(item.get("reasoning", "Recommended for higher ATS alignment.")),
@@ -284,6 +289,239 @@ Respond ONLY with a valid JSON object matching the exact format:
         plan_dict = generate_personalized_interview_plan(doc, jd)
         return InterviewPreparationPlan(**plan_dict)
 
+    def chat_resume(
+        self,
+        doc: NormalizedDocument,
+        message: str,
+        target_suggestion: Optional[AISuggestionItem] = None,
+        history: Optional[List[ResumeChatMessage]] = None,
+        jd_text: Optional[str] = None,
+    ) -> ResumeChatResponse:
+        """
+        Processes interactive chat specifically for resume and JD discussions.
+        Strictly rejects out-of-scope queries (weather, food, jokes, homework, personal advice)
+        without expensive LLM calls to optimize cost & token consumption.
+        """
+        msg_clean = message.strip()
+        msg_lower = msg_clean.lower()
+
+        # 1. Fast Guardrail: Reject out-of-scope non-resume queries
+        out_of_scope_patterns = [
+            r"\b(tell me a joke|joke|funny story)\b",
+            r"\b(what should i (eat|cook|wear)|recipe|recipes|food recommendation)\b",
+            r"\b(weather in|what('s| is) the weather|rain today|temperature in)\b",
+            r"\b(who (is|was) the (president|prime minister|king)|who won the match|sports score|ipl|fifa)\b",
+            r"\b(stock price|bitcoin price|crypto price|crypto market|invest in stocks)\b",
+            r"\b(personal relationship|dating advice|break up|girlfriend|boyfriend)\b",
+            r"\b(write (a|my) (college )?(essay|homework|physics assignment|math proof))\b",
+            r"\b(write a poem about|write a song about)\b",
+            r"\b(help me with python unrelated to my resume|write a binary search tree in c\+\+)\b",
+        ]
+        for pat in out_of_scope_patterns:
+            if re.search(pat, msg_lower):
+                return ResumeChatResponse(
+                    status="success",
+                    reply="I can help only with your resume and job-description analysis. Ask me something about your resume or the JD.",
+                    suggestion_id=target_suggestion.suggestion_id if target_suggestion else None,
+                    is_scope_rejection=True,
+                )
+
+        # 2. Build targeted compact context
+        suggestion_ctx = ""
+        if target_suggestion:
+            suggestion_ctx = f"""
+TARGET SUGGESTION UNDER DISCUSSION:
+- Section / Location: {target_suggestion.location_label or target_suggestion.location.location_label or 'Resume Section'}
+- Current Text in Resume: "{target_suggestion.original_text}"
+- Suggested Replacement: "{target_suggestion.suggested_text}"
+- Reasoning: {target_suggestion.reasoning}
+- Why It Matters: {target_suggestion.why_it_matters}
+"""
+
+        # Condensed resume overview (avoid resending entire verbose AST)
+        resume_lines = []
+        for sec in doc.sections[:6]:
+            heading = sec.heading_text or "Section"
+            paras = [p.full_text for p in sec.paragraphs[:4] if p.full_text.strip()]
+            if paras:
+                resume_lines.append(f"[{heading}]\n" + "\n".join(f"• {p}" for p in paras))
+        resume_context = "\n\n".join(resume_lines)[:1800]
+
+        jd_context = f"Target Job Description:\n{jd_text[:1000]}" if jd_text and jd_text.strip() else "No target Job Description provided (Standalone Mode)."
+
+        # History summary (last 4 turns)
+        history_lines = []
+        if history:
+            for h in history[-4:]:
+                role_label = "User" if h.role == "user" else "Assistant"
+                history_lines.append(f"{role_label}: {h.content}")
+        history_text = "\n".join(history_lines) if history_lines else "None"
+
+        prompt = f"""
+{RESUME_CHAT_SYSTEM_PROMPT}
+
+CANDIDATE RESUME SUMMARY:
+{resume_context}
+
+{jd_context}
+
+{suggestion_ctx}
+
+RECENT CONVERSATION HISTORY:
+{history_text}
+
+USER MESSAGE:
+{msg_clean}
+
+Respond as the dedicated Resume Improvement Assistant.
+- Give a concise, actionable, professional reply formatted in clean markdown.
+- If the user asks why a change was recommended, explain the specific action verb, clarity, or ATS benefit.
+- If the user asks for shorter/longer alternatives, provide 2-3 polished variations.
+- If the user asks about JD alignment, specify which skills or projects should be highlighted without inventing falsehoods.
+"""
+
+        # 3. Call LLM (Gemini or OpenAI)
+        if self.gemini_api_key:
+            reply = self.call_gemini_raw(prompt)
+            if reply and reply.strip():
+                return ResumeChatResponse(
+                    status="success",
+                    reply=reply.strip(),
+                    suggestion_id=target_suggestion.suggestion_id if target_suggestion else None,
+                    is_scope_rejection=False,
+                )
+
+        if self.openai_api_key:
+            reply = self.call_openai_raw(prompt)
+            if reply and reply.strip():
+                return ResumeChatResponse(
+                    status="success",
+                    reply=reply.strip(),
+                    suggestion_id=target_suggestion.suggestion_id if target_suggestion else None,
+                    is_scope_rejection=False,
+                )
+
+        # 4. Contextual Fallback Response (when offline / no API key configured)
+        reply = self._build_contextual_fallback_reply(
+            msg_clean=msg_clean,
+            target_suggestion=target_suggestion,
+            doc=doc,
+            has_jd=bool(jd_text and jd_text.strip()),
+        )
+
+        return ResumeChatResponse(
+            status="success",
+            reply=reply,
+            suggestion_id=target_suggestion.suggestion_id if target_suggestion else None,
+            is_scope_rejection=False,
+        )
+
+    def _build_contextual_fallback_reply(
+        self,
+        msg_clean: str,
+        target_suggestion: Optional[AISuggestionItem],
+        doc: NormalizedDocument,
+        has_jd: bool,
+    ) -> str:
+        msg_lower = msg_clean.lower()
+
+        # If asking about specific suggestion
+        if target_suggestion:
+            loc = target_suggestion.location_label or "this section"
+            orig = target_suggestion.original_text
+            sug = target_suggestion.suggested_text
+            reason = target_suggestion.reasoning
+
+            if any(q in msg_lower for q in ["why", "reason", "purpose", "explain"]):
+                return (
+                    f"**Why this change was suggested for {loc}:**\n\n"
+                    f"- **Current Phrasing:** *\"{orig}\"*\n"
+                    f"- **Recommended Replacement:** **\"{sug}\"**\n\n"
+                    f"**Reasoning:** {reason}\n\n"
+                    f"Using active, direct verbs and technical clarity helps your resume stand out in both ATS keyword filtering and recruiter 6-second scans."
+                )
+
+            if any(q in msg_lower for q in ["shorter", "concise", "brief", "short version"]):
+                short_sug = sug.split(",")[0].rstrip(".") + "." if "," in sug else sug
+                return (
+                    f"Here are 2 concise versions for **{loc}**:\n\n"
+                    f"1. **\"{short_sug}\"** (Streamlined action-focused)\n"
+                    f"2. **\"{sug}\"** (Full impact with technical details)\n\n"
+                    f"You can click **[Edit]** or **[Apply]** on the card to update your resume."
+                )
+
+            if any(q in msg_lower for q in ["alternative", "variations", "another way", "options"]):
+                return (
+                    f"Here are alternative options for **{loc}**:\n\n"
+                    f"1. **\"{sug}\"** (Recommended for ATS clarity)\n"
+                    f"2. **\"Engineered and deployed {orig.lstrip('•-* ').strip()}, ensuring high performance and maintainability.\"**\n"
+                    f"3. **\"Delivered {orig.lstrip('•-* ').strip()} following best engineering practices.\"**"
+                )
+
+            return (
+                f"Regarding **{loc}** (*\"{orig}\"*):\n\n"
+                f"I recommend: **\"{sug}\"**\n\n"
+                f"**Impact:** {reason}\n\n"
+                f"Would you like a shorter variation or additional technical details added?"
+            )
+
+        # General questions
+        if any(q in msg_lower for q in ["skill", "skills", "keyword", "keywords", "jd"]):
+            if has_jd:
+                return (
+                    "**JD Alignment Strategy:**\n\n"
+                    "1. Ensure required technical skills from the Job Description are prominently listed in your **Technical Skills** section.\n"
+                    "2. Contextualize where you applied each skill in your project or work experience bullet points.\n"
+                    "3. Avoid keyword stuffing; only include technologies you have working familiarity with."
+                )
+            return (
+                "**Skills Section Guidance:**\n\n"
+                "Organize your skills logically by category (e.g., *Languages, Frameworks, Databases, Tools*). Use standard casing (e.g. `Python`, `FastAPI`, `PostgreSQL`) so ATS parsers index them correctly."
+            )
+
+        if any(q in msg_lower for q in ["project", "projects", "bullet", "bullets", "rewrite"]):
+            return (
+                "**Formula for High-Impact Project Bullets (Google X-Y-Z Formula):**\n\n"
+                "• **Action Verb + Core Technology + Quantified Outcome**\n\n"
+                "*Example:* *\"Developed a YOLOv8-based crowd detection system for real-time video analysis, reducing inference latency by 30%.\"*\n\n"
+                "Tell me which project or sentence you'd like me to rewrite!"
+            )
+
+        return (
+            "I'm your **Resume Improvement Assistant**. I can help you with:\n\n"
+            "• Explaining why any suggestion was recommended\n"
+            "• Generating shorter or alternate bullet variations\n"
+            "• Tailoring your projects & skills to a target Job Description\n"
+            "• Making sentences more action-oriented and ATS-friendly\n\n"
+            "How can I help improve your resume right now?"
+        )
+
+    def call_openai_raw(self, prompt: str) -> Optional[str]:
+        """Direct text helper for OpenAI generation."""
+        if not self.openai_api_key:
+            return None
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": RESUME_CHAT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3
+        }
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                resp = client.post(url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.warning(f"OpenAI raw text call failed: {e}")
+        return None
 
     def call_gemini_raw(self, prompt: str) -> Optional[str]:
         """Direct text helper for Gemini generation."""
@@ -307,3 +545,4 @@ Respond ONLY with a valid JSON object matching the exact format:
         except Exception as e:
             logger.warning(f"Gemini raw text call failed: {e}")
         return None
+

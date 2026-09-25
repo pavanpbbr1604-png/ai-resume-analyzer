@@ -10,6 +10,8 @@ from app.schemas.analysis import (
     AnalysisStage,
     AnalysisSummary,
     InterviewPreparationPlan,
+    ResumeChatMessage,
+    ResumeChatResponse,
 )
 from app.ai.llm_provider import LLMAIProvider
 
@@ -61,6 +63,43 @@ class AIService:
     @classmethod
     def get_analysis(cls, analysis_id: str) -> Optional[AnalysisResultResponse]:
         return _ANALYSIS_STORE.get(analysis_id)
+
+    @classmethod
+    def chat_resume(
+        cls,
+        doc: NormalizedDocument,
+        message: str,
+        analysis_id: Optional[str] = None,
+        suggestion_id: Optional[str] = None,
+        history: Optional[List[ResumeChatMessage]] = None,
+        jd_text: Optional[str] = None,
+    ) -> ResumeChatResponse:
+        target_sug: Optional[AISuggestionItem] = None
+        if suggestion_id:
+            # Look up from active analysis or store
+            if analysis_id and analysis_id in _ANALYSIS_STORE:
+                for s in _ANALYSIS_STORE[analysis_id].suggestions:
+                    if s.suggestion_id == suggestion_id:
+                        target_sug = s
+                        break
+            if not target_sug:
+                for an_res in _ANALYSIS_STORE.values():
+                    for s in an_res.suggestions:
+                        if s.suggestion_id == suggestion_id:
+                            target_sug = s
+                            break
+                    if target_sug:
+                        break
+
+        provider = LLMAIProvider()
+        return provider.chat_resume(
+            doc=doc,
+            message=message,
+            target_suggestion=target_sug,
+            history=history,
+            jd_text=jd_text,
+        )
+
 
     @classmethod
     def generate_interview_plan(

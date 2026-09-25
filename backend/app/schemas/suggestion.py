@@ -59,6 +59,7 @@ class DocumentLocation(BaseModel):
     end_offset: int
     original_text_snippet: str
     paragraph_text_hash: str
+    location_label: Optional[str] = None
 
 class AISuggestionItem(BaseModel):
     suggestion_id: str
@@ -69,6 +70,7 @@ class AISuggestionItem(BaseModel):
     requires_user_confirmation: bool = True
     location: DocumentLocation
     location_confidence: float = 1.0
+    location_label: Optional[str] = None
     original_text: str
     suggested_text: str
     reasoning: str
@@ -82,3 +84,4 @@ class ApplySuggestionRequest(BaseModel):
 class BatchSuggestionAction(BaseModel):
     suggestion_ids: List[str]
     action: str  # 'apply' or 'ignore'
+

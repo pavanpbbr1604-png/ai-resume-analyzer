@@ -27,6 +27,7 @@ export interface DocumentLocation {
   end_offset: number;
   original_text_snippet: string;
   paragraph_text_hash: string;
+  location_label?: string;
 }
 
 export interface AISuggestionItem {
@@ -38,6 +39,7 @@ export interface AISuggestionItem {
   requires_user_confirmation: boolean;
   location: DocumentLocation;
   location_confidence: number;
+  location_label?: string;
   original_text: string;
   suggested_text: string;
   reasoning: string;
@@ -45,6 +47,28 @@ export interface AISuggestionItem {
   user_prompt_question?: string;
   status: SuggestionStatus;
 }
+
+export interface ResumeChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ResumeChatRequest {
+  resume_id: string;
+  message: string;
+  analysis_id?: string;
+  suggestion_id?: string;
+  history?: ResumeChatMessage[];
+  jd_text?: string;
+}
+
+export interface ResumeChatResponse {
+  status: string;
+  reply: string;
+  suggestion_id?: string;
+  is_scope_rejection?: boolean;
+}
+
 
 export interface RunFormatting {
   font_family: string;

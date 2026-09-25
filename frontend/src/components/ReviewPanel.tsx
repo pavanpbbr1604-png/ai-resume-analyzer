@@ -3,8 +3,10 @@ import {
   AISuggestionItem,
   AnalysisSummary,
   InterviewPreparationPlan,
+  NormalizedDocument,
 } from '../types';
 import { SuggestionCard } from './SuggestionCard';
+import { ResumeChat } from './ResumeChat';
 import { api } from '../services/api';
 import {
   Zap,
@@ -32,6 +34,8 @@ import {
   Square,
 } from 'lucide-react';
 
+
+
 interface ReviewPanelProps {
   summary?: AnalysisSummary;
   suggestions: AISuggestionItem[];
@@ -41,10 +45,13 @@ interface ReviewPanelProps {
   onIgnore: (suggestionId: string) => void;
   onEdit: (suggestion: AISuggestionItem) => void;
   documentId?: string;
-  activeTab?: 'suggestions' | 'enhancer' | 'interview';
-  onTabChange?: (tab: 'suggestions' | 'enhancer' | 'interview') => void;
+  document?: NormalizedDocument | null;
+  activeTab?: 'suggestions' | 'chat' | 'enhancer' | 'interview';
+  onTabChange?: (tab: 'suggestions' | 'chat' | 'enhancer' | 'interview') => void;
   currentJdText?: string;
   onOpenJdInput?: () => void;
+  activeSuggestionForChat?: AISuggestionItem | null;
+  onSelectSuggestionForChat?: (suggestion: AISuggestionItem | null) => void;
 }
 
 export const ReviewPanel: React.FC<ReviewPanelProps> = ({
@@ -56,19 +63,25 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
   onIgnore,
   onEdit,
   documentId,
+  document,
   activeTab: propActiveTab,
   onTabChange,
   currentJdText = '',
   onOpenJdInput,
+  activeSuggestionForChat,
+  onSelectSuggestionForChat,
 }) => {
-  const [internalActiveTab, setInternalActiveTab] = useState<'suggestions' | 'enhancer' | 'interview'>('suggestions');
+  const [internalActiveTab, setInternalActiveTab] = useState<'suggestions' | 'chat' | 'enhancer' | 'interview'>('suggestions');
   const activeTab = propActiveTab || internalActiveTab;
 
-  const setActiveTab = (tab: 'suggestions' | 'enhancer' | 'interview') => {
+  const [internalChatSuggestion, setInternalChatSuggestion] = useState<AISuggestionItem | null>(null);
+  const activeChatSuggestion = activeSuggestionForChat !== undefined ? activeSuggestionForChat : internalChatSuggestion;
+
+  const setActiveTab = (tab: 'suggestions' | 'chat' | 'enhancer' | 'interview') => {
     setInternalActiveTab(tab);
     if (onTabChange) onTabChange(tab);
   };
-  const [filter, setFilter] = useState<string>('ALL');
+
 
   // Bullet Enhancer state
   const [inputBullet, setInputBullet] = useState<string>('');
@@ -128,14 +141,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
     return `https://www.youtube.com/results?search_query=${query}`;
   };
 
-  const filteredSuggestions = suggestions.filter((s) => {
-    if (filter === 'ALL') return true;
-    if (filter === 'CRITICAL') return s.severity === 'CRITICAL' || s.severity === 'HIGH';
-    if (filter === 'SKILLS') return s.category === 'SKILL_ALIGNMENT' || s.category === 'KEYWORD_RELEVANCE';
-    if (filter === 'GRAMMAR') return s.category === 'GRAMMAR' || s.category === 'PUNCTUATION' || s.category === 'FORMATTING';
-    if (filter === 'RELEVANCE') return s.category === 'CONTENT_RELEVANCE' || s.category === 'EXPERIENCE_RELEVANCE' || s.category === 'WEAK_WORDING';
-    return true;
-  });
 
   const handleEnhanceBullet = async () => {
     if (!inputBullet.trim()) return;
@@ -393,6 +398,18 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
 
           <button
             className={`px-4 py-3 font-label-caps text-[11px] whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              activeTab === 'chat'
+                ? 'text-[#ff5722] border-b-2 border-[#ff5722] bg-[#1a1c1e] font-bold'
+                : 'text-[#e4beb4] hover:text-[#ff5722]'
+            }`}
+            onClick={() => setActiveTab('chat')}
+          >
+            <Sparkles size={13} className="text-[#ff5722]" />
+            <span>RESUME ASSISTANT</span>
+          </button>
+
+          <button
+            className={`px-4 py-3 font-label-caps text-[11px] whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               activeTab === 'enhancer'
                 ? 'text-[#ff5722] border-b-2 border-[#ff5722] bg-[#1a1c1e] font-bold'
                 : 'text-[#e4beb4] hover:text-[#ff5722]'
@@ -419,32 +436,30 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
           </button>
         </div>
 
-        {/* Tab 1: Suggestions List */}
+        {/* Tab 1: Continuous Unified Suggestions Feed */}
         {activeTab === 'suggestions' && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex gap-2 p-3 border-b border-[#2C3136] bg-[#121416] overflow-x-auto">
-              {['ALL', 'CRITICAL', 'SKILLS', 'GRAMMAR', 'RELEVANCE'].map((f) => (
-                <button
-                  key={f}
-                  className={`px-3 py-1 font-label-caps text-[10px] border transition-all ${
-                    filter === f
-                      ? 'bg-[#ff5722] text-white border-[#ff5722] font-bold glow-orange'
-                      : 'bg-[#1e2022] text-[#e4beb4] border-[#2C3136] hover:border-[#ff5722]'
-                  }`}
-                  onClick={() => setFilter(f)}
-                >
-                  {f}
-                </button>
-              ))}
+            <div className="p-3 border-b border-[#2C3136] bg-[#16181a] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Layers size={13} className="text-[#ff5722]" />
+                <span className="font-label-caps text-xs text-white font-bold tracking-wide">
+                  ACTIONABLE IMPROVEMENTS ({suggestions.length})
+                </span>
+              </div>
+              <span className="text-[10px] text-[#8e9196] font-mono">
+                Click [Ask Agent] to discuss any item
+              </span>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-              {filteredSuggestions.length === 0 ? (
-                <div className="text-center py-10 text-[#e4beb4] text-xs font-label-caps">
-                  No suggestions matching this filter.
+              {suggestions.length === 0 ? (
+                <div className="text-center py-16 text-[#e4beb4] text-xs font-label-caps flex flex-col items-center gap-2.5">
+                  <CheckCircle2 size={32} className="text-[#00C853]" />
+                  <span className="font-bold text-white text-sm">All Set!</span>
+                  <span className="text-[#8e9196]">No additional resume suggestions detected.</span>
                 </div>
               ) : (
-                filteredSuggestions.map((sug) => (
+                suggestions.map((sug) => (
                   <SuggestionCard
                     key={sug.suggestion_id}
                     suggestion={sug}
@@ -453,12 +468,36 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
                     onApply={onApply}
                     onIgnore={onIgnore}
                     onEdit={onEdit}
+                    onAskAgent={(targetSug) => {
+                      setInternalChatSuggestion(targetSug);
+                      if (onSelectSuggestionForChat) onSelectSuggestionForChat(targetSug);
+                      setActiveTab('chat');
+                    }}
                   />
                 ))
               )}
             </div>
           </div>
         )}
+
+        {/* Tab 2: Resume & JD Improvement Assistant Chat */}
+        {activeTab === 'chat' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <ResumeChat
+              documentId={documentId}
+              document={document}
+              analysisId={summary?.analysis_hash}
+              currentJdText={currentJdText}
+              activeSuggestion={activeChatSuggestion}
+              onClearActiveSuggestion={() => {
+                setInternalChatSuggestion(null);
+                if (onSelectSuggestionForChat) onSelectSuggestionForChat(null);
+              }}
+              onApplySuggestion={onApply}
+            />
+          </div>
+        )}
+
 
         {/* Tab 2: AI Rewriter */}
         {activeTab === 'enhancer' && (

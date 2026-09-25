@@ -1,9 +1,9 @@
 import React from 'react';
-import { Edit3, Mic } from 'lucide-react';
+import { Edit3, Mic, Sparkles, Layers } from 'lucide-react';
 
 interface SidebarProps {
-  activeView: 'optimizer' | 'rewriter' | 'interview';
-  onSelectView: (view: 'optimizer' | 'rewriter' | 'interview') => void;
+  activeView: 'optimizer' | 'assistant' | 'rewriter' | 'interview';
+  onSelectView: (view: 'optimizer' | 'assistant' | 'rewriter' | 'interview') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeView, onSelectView }) => {
@@ -24,8 +24,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onSelectView }) =>
               : 'text-[#e4beb4] hover:bg-[#282a2c] hover:text-[#ff5722]'
           }`}
         >
-          <span className="text-xs">•</span>
-          <span>ATS Optimizer</span>
+          <Layers size={16} />
+          <span>Resume Suggestions</span>
+        </button>
+
+        <button
+          onClick={() => onSelectView('assistant')}
+          className={`flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-all ${
+            activeView === 'assistant'
+              ? 'text-white bg-[#ff5722] font-bold shadow-md'
+              : 'text-[#e4beb4] hover:bg-[#282a2c] hover:text-[#ff5722]'
+          }`}
+        >
+          <Sparkles size={16} />
+          <span>Resume Assistant</span>
         </button>
 
         <button
@@ -52,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onSelectView }) =>
           <span>Interview Prep</span>
         </button>
       </nav>
+
 
       {/* Footer Go Premium */}
       <div className="mt-auto border-t border-[#2C3136] pt-4">

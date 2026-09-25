@@ -2,11 +2,39 @@ import {
   NormalizedDocument,
   AnalysisResultResponse,
   InterviewPreparationPlan,
+  ResumeChatMessage,
+  ResumeChatResponse,
 } from '../types';
 
 const API_BASE = '/api';
 
 export const api = {
+  async chatResume(
+    resumeId: string,
+    message: string,
+    options?: {
+      analysisId?: string;
+      suggestionId?: string;
+      history?: ResumeChatMessage[];
+      jdText?: string;
+    }
+  ): Promise<ResumeChatResponse> {
+    const res = await fetch(`${API_BASE}/analyses/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resume_id: resumeId,
+        message,
+        analysis_id: options?.analysisId,
+        suggestion_id: options?.suggestionId,
+        history: options?.history || [],
+        jd_text: options?.jdText,
+      }),
+    });
+    if (!res.ok) throw new Error('Failed to send resume chat message.');
+    return res.json();
+  },
+
   async uploadResume(file: File): Promise<NormalizedDocument> {
     const formData = new FormData();
     formData.append('file', file);

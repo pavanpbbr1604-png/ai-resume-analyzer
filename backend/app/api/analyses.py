@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from app.schemas.job_description import JobDescriptionRequest
-from app.schemas.analysis import AnalysisResultResponse, InterviewPreparationPlan
+from app.schemas.analysis import AnalysisResultResponse, InterviewPreparationPlan, ResumeChatRequest, ResumeChatResponse
 from app.services.document_service import DocumentService
 from app.services.ai_service import AIService
 
@@ -28,12 +28,28 @@ async def get_analysis(analysis_id: str):
         raise HTTPException(status_code=404, detail="Analysis not found.")
     return analysis
 
+@router.post("/chat", response_model=ResumeChatResponse)
+async def chat_resume(payload: ResumeChatRequest):
+    doc = DocumentService.get_document(payload.resume_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Resume not found.")
+    
+    return AIService.chat_resume(
+        doc=doc,
+        message=payload.message,
+        analysis_id=payload.analysis_id,
+        suggestion_id=payload.suggestion_id,
+        history=payload.history,
+        jd_text=payload.jd_text,
+    )
+
 @router.post("/enhance-bullet")
 async def enhance_bullet(payload: dict):
     bullet_text = payload.get("bullet_text", "")
     target_role = payload.get("target_role", "Software Engineer")
     options = AIService.enhance_bullet(bullet_text, target_role)
     return {"status": "success", "options": options}
+
 
 # Cover letter option temporarily disabled for now; will be restored when needed.
 @router.post("/cover-letter", deprecated=True)

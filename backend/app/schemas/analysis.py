@@ -75,6 +75,27 @@ class AnalysisResultResponse(BaseModel):
     summary: Optional[AnalysisSummary] = None
     suggestions: List[AISuggestionItem] = []
 
+# --- Resume AI Chat Schemas ---
+
+class ResumeChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+class ResumeChatRequest(BaseModel):
+    resume_id: str
+    message: str
+    analysis_id: Optional[str] = None
+    suggestion_id: Optional[str] = None
+    history: List[ResumeChatMessage] = []
+    jd_text: Optional[str] = None
+
+class ResumeChatResponse(BaseModel):
+    status: str
+    reply: str
+    suggestion_id: Optional[str] = None
+    is_scope_rejection: bool = False
+
+
 # --- Self-Study Interview Preparation Roadmap Schemas ---
 
 class StudySource(BaseModel):

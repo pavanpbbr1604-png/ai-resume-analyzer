@@ -69,18 +69,47 @@ const SAMPLE_NORMALIZED_DOC: NormalizedDocument = {
       ],
     },
     {
-      section_id: 'sec_skills',
-      heading_text: 'TECHNICAL SKILLS',
-      section_type: 'SKILLS',
+      section_id: 'sec_projects',
+      heading_text: 'KEY PROJECTS',
+      section_type: 'PROJECTS',
       confidence: 1.0,
       paragraphs: [
         {
-          paragraph_id: 'p_4',
-          index: 4,
+          paragraph_id: 'p_proj_1',
+          index: 5,
           is_bullet: false,
           alignment: 'LEFT',
-          full_text: 'Languages & Frameworks: Python, JavaScript, React, FastAPI, SQL',
-          text_hash: 'hash_skills_1',
+          full_text: 'Crowd Density Estimation System | YOLOv8, PyTorch, OpenCV',
+          text_hash: 'hash_proj_1',
+          runs: [],
+        },
+        {
+          paragraph_id: 'p_proj_2',
+          index: 6,
+          is_bullet: true,
+          bullet_symbol: '•',
+          alignment: 'LEFT',
+          full_text: 'Used YOLOv8 to detect people in crowded environments.',
+          text_hash: 'hash_proj_2',
+          runs: [],
+        },
+        {
+          paragraph_id: 'p_proj_3',
+          index: 7,
+          is_bullet: false,
+          alignment: 'LEFT',
+          full_text: 'E-Commerce Platform | PHP, MySQL, JavaScript',
+          text_hash: 'hash_proj_3',
+          runs: [],
+        },
+        {
+          paragraph_id: 'p_proj_4',
+          index: 8,
+          is_bullet: true,
+          bullet_symbol: '•',
+          alignment: 'LEFT',
+          full_text: 'Made an ecommerce website using PHP.',
+          text_hash: 'hash_proj_4',
           runs: [],
         },
       ],
@@ -88,6 +117,7 @@ const SAMPLE_NORMALIZED_DOC: NormalizedDocument = {
   ],
   raw_text: '',
 };
+
 
 interface WorkspacePageProps {
   onBackToHome?: () => void;
@@ -101,7 +131,8 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
   const [editingSuggestion, setEditingSuggestion] = useState<AISuggestionItem | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
-  const [activeSidebarView, setActiveSidebarView] = useState<'optimizer' | 'rewriter' | 'interview'>('optimizer');
+  const [activeSidebarView, setActiveSidebarView] = useState<'optimizer' | 'assistant' | 'rewriter' | 'interview'>('optimizer');
+  const [activeSuggestionForChat, setActiveSuggestionForChat] = useState<AISuggestionItem | null>(null);
   const [historyStack, setHistoryStack] = useState<Array<{ suggestionId: string; prevStatus: string; prevDoc: NormalizedDocument }>>([]);
   const [version, setVersion] = useState<number>(1);
   const [isGlobalDragOver, setIsGlobalDragOver] = useState<boolean>(false);
@@ -116,8 +147,15 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
   // Ref to the upload panel so popup "Go Back" can focus the JD textarea.
   const uploadPanelRef = useRef<LeftUploadPanelHandle>(null);
 
-  const activeTab: 'suggestions' | 'enhancer' | 'interview' =
-    activeSidebarView === 'optimizer' ? 'suggestions' : activeSidebarView === 'rewriter' ? 'enhancer' : 'interview';
+  const activeTab: 'suggestions' | 'chat' | 'enhancer' | 'interview' =
+    activeSidebarView === 'optimizer'
+      ? 'suggestions'
+      : activeSidebarView === 'assistant'
+      ? 'chat'
+      : activeSidebarView === 'rewriter'
+      ? 'enhancer'
+      : 'interview';
+
 
   const hasJd = Boolean(currentJdText && currentJdText.trim());
 
@@ -180,6 +218,60 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
     const mockSuggestions: AISuggestionItem[] = [
       {
         suggestion_id: 'sug_sample_1',
+        category: 'CONTENT_RELEVANCE',
+        type: 'PROJECT_DESCRIPTION',
+        severity: 'HIGH',
+        confidence: 0.98,
+        requires_user_confirmation: true,
+        location: {
+          section_id: 'sec_projects',
+          paragraph_id: 'p_proj_2',
+          run_ids: [],
+          start_offset: 0,
+          end_offset: 54,
+          original_text_snippet: 'Used YOLOv8 to detect people',
+          paragraph_text_hash: 'hash_proj_2',
+          location_label: 'Project: Crowd Density Estimation',
+        },
+        location_confidence: 0.98,
+        location_label: 'Project: Crowd Density Estimation',
+        original_text: 'Used YOLOv8 to detect people in crowded environments.',
+        suggested_text:
+          'Implemented YOLOv8-based person detection for real-time crowd analysis.',
+        reasoning:
+          'The revised version is more specific and uses stronger action-oriented wording.',
+        why_it_matters: 'Precise technical terminology clearly communicates engineering ownership to recruiters.',
+        status: 'PENDING',
+      },
+      {
+        suggestion_id: 'sug_sample_2',
+        category: 'CONTENT_RELEVANCE',
+        type: 'PROJECT_DESCRIPTION',
+        severity: 'HIGH',
+        confidence: 0.95,
+        requires_user_confirmation: true,
+        location: {
+          section_id: 'sec_projects',
+          paragraph_id: 'p_proj_4',
+          run_ids: [],
+          start_offset: 0,
+          end_offset: 35,
+          original_text_snippet: 'Made an ecommerce website',
+          paragraph_text_hash: 'hash_proj_4',
+          location_label: 'Project: E-Commerce Platform',
+        },
+        location_confidence: 0.95,
+        location_label: 'Project: E-Commerce Platform',
+        original_text: 'Made an ecommerce website using PHP.',
+        suggested_text:
+          'Developed a full-stack e-commerce platform using PHP and MySQL with an admin dashboard and payment integration.',
+        reasoning:
+          'The original statement is too vague and does not communicate the scope of the project.',
+        why_it_matters: 'Communicating complete stack scope and end-to-end features distinguishes your technical profile.',
+        status: 'PENDING',
+      },
+      {
+        suggestion_id: 'sug_sample_3',
         category: 'EXPERIENCE_RELEVANCE',
         type: 'WEAK_WORDING',
         severity: 'CRITICAL',
@@ -193,8 +285,10 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
           end_offset: 58,
           original_text_snippet: 'Led a team',
           paragraph_text_hash: 'hash_exp_1',
+          location_label: 'Experience: Platform Engineering',
         },
         location_confidence: 0.98,
+        location_label: 'Experience: Platform Engineering',
         original_text: 'Led a team of 5 engineers to deliver the main platform update.',
         suggested_text:
           'Spearheaded a cross-functional team of 5 engineers to architect and deploy major platform updates, boosting user throughput by 35%.',
@@ -204,7 +298,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
         status: 'PENDING',
       },
       {
-        suggestion_id: 'sug_sample_2',
+        suggestion_id: 'sug_sample_4',
         category: 'WEAK_WORDING',
         type: 'MISSING_METRIC',
         severity: 'HIGH',
@@ -218,8 +312,10 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
           end_offset: 78,
           original_text_snippet: 'Improved API performance',
           paragraph_text_hash: 'hash_exp_2',
+          location_label: 'Experience: Backend Optimization',
         },
         location_confidence: 0.94,
+        location_label: 'Experience: Backend Optimization',
         original_text:
           'Improved API performance and reduced query response times for critical services',
         suggested_text:
@@ -230,6 +326,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
         status: 'PENDING',
       },
     ];
+
 
     setSuggestions(mockSuggestions);
     setAnalysis({
@@ -744,18 +841,23 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
                   onIgnore={handleIgnore}
                   onEdit={(sug) => setEditingSuggestion(sug)}
                   documentId={doc?.document_id}
+                  document={doc}
                   activeTab={activeTab}
                   onTabChange={(tab) => {
                     if (tab === 'suggestions') setActiveSidebarView('optimizer');
+                    if (tab === 'chat') setActiveSidebarView('assistant');
                     if (tab === 'enhancer') setActiveSidebarView('rewriter');
                     if (tab === 'interview') {
                       setActiveSidebarView('interview');
                       if (!hasJd) setShowJdDrawer(true);
                     }
                   }}
+                  activeSuggestionForChat={activeSuggestionForChat}
+                  onSelectSuggestionForChat={(sug) => setActiveSuggestionForChat(sug)}
                   currentJdText={currentJdText}
                   onOpenJdInput={() => setShowJdDrawer(true)}
                 />
+
               </div>
             </>
           )}

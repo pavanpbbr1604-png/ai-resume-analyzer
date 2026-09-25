@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   AISuggestionItem,
   ResumeChatMessage,
@@ -17,7 +17,6 @@ import {
   Check,
 } from 'lucide-react';
 
-
 interface ResumeChatProps {
   documentId?: string;
   document?: NormalizedDocument | null;
@@ -26,6 +25,128 @@ interface ResumeChatProps {
   activeSuggestion?: AISuggestionItem | null;
   onClearActiveSuggestion?: () => void;
   onApplySuggestion?: (suggestionId: string) => void;
+}
+
+function generateInitialGreeting(doc?: NormalizedDocument | null): string {
+  if (!doc) {
+    return "Hello! I'm your **Resume AI Coach** (conversational agent modeled after ChatGPT). Once your resume is loaded, I'll read every section, evaluate your project bullets, and help you craft high-impact achievements.";
+  }
+
+  const filename = doc.filename || 'your uploaded resume';
+  const sectionNames = (doc.sections || [])
+    .map((s) => s.heading_text || s.section_type)
+    .filter((n) => n && n.trim().length > 0);
+
+  const sectionsSummary =
+    sectionNames.length > 0
+      ? sectionNames.slice(0, 5).join(', ')
+      : 'Summary, Experience, Projects, Skills, Education';
+
+  return `👋 Hi! I've reviewed your resume **${filename}** across detected sections: *${sectionsSummary}*.
+
+I'm here as your dedicated **ChatGPT-style Career & Resume Coach**:
+• **Full Resume Critique**: Comprehensive review of bullet strength, metrics, and ATS compatibility.
+• **Google X-Y-Z Bullet Rewrites**: Transform passive task descriptions into quantifiable impact (*"Accomplished [X] measured by [Y], by doing [Z]"*).
+• **Strengths & Gaps**: An honest assessment of your technical depth and market positioning.
+• **Job Description Alignment**: Check keyword coverage and match requirements.
+
+How can I help elevate your resume today?`;
+}
+
+// Lightweight, safe markdown formatter for ChatGPT-like rich responses
+const FormattedMessage: React.FC<{ content: string }> = ({ content }) => {
+  const renderedContent = useMemo(() => {
+    const lines = content.split('\n');
+    return lines.map((line, lineIdx) => {
+      // Header 3 or 2
+      if (line.startsWith('### ') || line.startsWith('## ')) {
+        const headerText = line.replace(/^#{2,3}\s+/, '');
+        return (
+          <h4
+            key={lineIdx}
+            className="text-white font-bold text-xs mt-2.5 mb-1 text-[#ffb5a0] tracking-wide"
+          >
+            {renderInline(headerText)}
+          </h4>
+        );
+      }
+
+      // Bullet points
+      if (line.trim().startsWith('- ') || line.trim().startsWith('• ') || line.trim().startsWith('* ')) {
+        const bulletText = line.trim().replace(/^[-•*]\s+/, '');
+        return (
+          <div key={lineIdx} className="flex items-start gap-2 my-0.5 ml-1">
+            <span className="text-[#ff5722] text-xs leading-5 shrink-0">•</span>
+            <div className="flex-1 text-[#e2e2e5] text-xs leading-relaxed">
+              {renderInline(bulletText)}
+            </div>
+          </div>
+        );
+      }
+
+      // Numbered list: 1. 2. etc
+      const numMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
+      if (numMatch) {
+        return (
+          <div key={lineIdx} className="flex items-start gap-1.5 my-0.5 ml-1">
+            <span className="text-[#ff5722] font-mono text-[11px] shrink-0 font-bold">
+              {numMatch[1]}.
+            </span>
+            <div className="flex-1 text-[#e2e2e5] text-xs leading-relaxed">
+              {renderInline(numMatch[2])}
+            </div>
+          </div>
+        );
+      }
+
+      // Empty line / paragraph break
+      if (!line.trim()) {
+        return <div key={lineIdx} className="h-1.5" />;
+      }
+
+      // Normal paragraph
+      return (
+        <p key={lineIdx} className="text-xs leading-relaxed text-[#e2e2e5] my-0.5">
+          {renderInline(line)}
+        </p>
+      );
+    });
+  }, [content]);
+
+  return <div className="space-y-0.5">{renderedContent}</div>;
+};
+
+// Inline helper for bold, code, and emphasis
+function renderInline(text: string): React.ReactNode {
+  // Regex to match **bold**, `code`, *italic*
+  const parts = text.split(/(\*\*.*?\*\*|`.*?`|\*.*?\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={idx} className="text-white font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code
+          key={idx}
+          className="bg-[#24272b] text-[#ffb5a0] px-1 py-0.2 rounded font-mono text-[11px] border border-[#3c4148]"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return (
+        <em key={idx} className="text-[#e4beb4] italic">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    return part;
+  });
 }
 
 export const ResumeChat: React.FC<ResumeChatProps> = ({
@@ -37,11 +158,10 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
   onClearActiveSuggestion,
   onApplySuggestion,
 }) => {
-  const [messages, setMessages] = useState<ResumeChatMessage[]>([
+  const [messages, setMessages] = useState<ResumeChatMessage[]>(() => [
     {
       role: 'assistant',
-      content:
-        "Hello! I'm your dedicated **Resume Improvement Assistant**. Ask me anything about your resume, job description alignment, bullet rewrites, or specific suggestions.",
+      content: generateInitialGreeting(document),
     },
   ]);
   const [inputText, setInputText] = useState<string>('');
@@ -50,6 +170,23 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Update initial greeting when document loads if chat hasn't started
+  useEffect(() => {
+    if (document) {
+      setMessages((prev) => {
+        if (prev.length === 1 && prev[0].role === 'assistant') {
+          return [
+            {
+              role: 'assistant',
+              content: generateInitialGreeting(document),
+            },
+          ];
+        }
+        return prev;
+      });
+    }
+  }, [document]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,10 +218,10 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
       if (docId.startsWith('doc_sample') || !documentId) {
         // Local preview simulation
         setTimeout(() => {
-          const reply = getLocalChatReply(message, activeSuggestion, currentJdText);
+          const reply = getLocalChatReply(message, document, activeSuggestion, currentJdText);
           setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
           setIsLoading(false);
-        }, 600);
+        }, 500);
       } else {
         const response = await api.chatResume(docId, message, {
           analysisId,
@@ -132,25 +269,25 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
     setMessages([
       {
         role: 'assistant',
-        content:
-          "Chat reset. How can I assist you with your resume or target Job Description today?",
+        content: generateInitialGreeting(document),
       },
     ]);
   };
 
-  // Quick Prompt Suggestions
+  // Dynamic Prompt Chips - ChatGPT style
   const quickPrompts = activeSuggestion
     ? [
         `Why should I change this ${activeSuggestion.location_label || 'section'}?`,
-        `Give me a shorter version for this.`,
-        `Make this more ATS-friendly.`,
-        `Provide 2 alternative rewrites.`,
+        `Rewrite using Google X-Y-Z formula`,
+        `Give me a shorter, high-impact version`,
+        `Make this more ATS keyword-rich`,
       ]
     : [
-        `How can I make my project bullets more impactful?`,
-        `What skills from the JD are missing in my resume?`,
-        `Give me an executive summary formula.`,
-        `How do I quantify my experience?`,
+        `Critique my full resume`,
+        `What are my top strengths & weaknesses?`,
+        `Rewrite my project bullets using Google X-Y-Z`,
+        `What skills should I highlight or improve?`,
+        `Draft an executive summary for this resume`,
       ];
 
   const hasJd = Boolean(currentJdText && currentJdText.trim());
@@ -267,7 +404,11 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
                   : 'bg-[#181a1c] border border-[#2C3136] text-[#e2e2e5] font-body-md'
               }`}
             >
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              {msg.role === 'user' ? (
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              ) : (
+                <FormattedMessage content={msg.content} />
+              )}
 
               {msg.role === 'assistant' && (
                 <button
@@ -290,11 +431,11 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
           <div className="flex flex-col gap-1 items-start">
             <div className="flex items-center gap-1.5 px-1">
               <Bot size={12} className="text-[#ff5722]" />
-              <span className="text-[10px] font-label-caps text-[#ffb5a0]">ANALYZING...</span>
+              <span className="text-[10px] font-label-caps text-[#ffb5a0]">ANALYZING RESUME...</span>
             </div>
             <div className="bg-[#181a1c] border border-[#2C3136] p-3 rounded-sm text-xs text-[#8e9196] flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#ff5722] animate-ping" />
-              <span className="font-mono text-[11px]">Formulating targeted resume feedback...</span>
+              <span className="font-mono text-[11px]">Thinking through resume structure & crafting feedback...</span>
             </div>
           </div>
         )}
@@ -354,42 +495,149 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
   );
 };
 
-// Local simulation helper for demo mode
+// Local simulation helper for demo / preview mode
 function getLocalChatReply(
   message: string,
+  doc?: NormalizedDocument | null,
   targetSuggestion?: AISuggestionItem | null,
   jdText?: string
 ): string {
   const msgLower = message.toLowerCase();
 
-  // Out of scope check
-  if (
-    msgLower.includes('joke') ||
-    msgLower.includes('weather') ||
-    msgLower.includes('eat') ||
-    msgLower.includes('homework') ||
-    msgLower.includes('recipe')
-  ) {
+  // Strict domain guardrails
+  const outOfScopeKeywords = [
+    'joke', 'weather', 'recipe', 'movie', 'song', 'sports', 'football',
+    'cricket', 'politics', 'election', 'food', 'restaurant', 'stock price',
+    'crypto', 'bitcoin', 'homework', 'math'
+  ];
+  if (outOfScopeKeywords.some((kw) => msgLower.includes(kw))) {
     return 'I can help only with your resume and job-description analysis. Ask me something about your resume or the JD.';
   }
 
+  // Active suggestion specific questions
   if (targetSuggestion) {
     const loc = targetSuggestion.location_label || 'this section';
     if (msgLower.includes('why') || msgLower.includes('reason')) {
-      return `**Why this change was recommended for ${loc}:**\n\n- **Current:** *"${targetSuggestion.original_text}"*\n- **Suggested:** **"${targetSuggestion.suggested_text}"**\n\n**Reason:** ${targetSuggestion.reasoning}\n\nUsing active power verbs and quantifying measurable outcomes increases recruiter callback rates.`;
+      return `### Why this change was recommended for ${loc}
+
+- **Current Text:** *"${targetSuggestion.original_text}"*
+- **Recommended Upgrade:** **"${targetSuggestion.suggested_text}"**
+
+### Key Advantages:
+1. **Action-Oriented Verbs:** Replaces passive language with active, decisive power verbs.
+2. **Quantified Impact:** Recruiters and hiring managers look for clear business or engineering metrics (e.g. latency reduction, throughput, user growth).
+3. **ATS Readability:** Embeds core skills and clean phrasing so automated screening systems parse it with high confidence.`;
     }
-    if (msgLower.includes('short') || msgLower.includes('brief')) {
-      return `Here is a concise version for **${loc}**:\n\n**"${targetSuggestion.suggested_text.split(',')[0]}."**\n\nClick **[Apply]** or **[Edit]** to insert it into your resume.`;
+
+    if (msgLower.includes('short') || msgLower.includes('brief') || msgLower.includes('concise')) {
+      const firstClause = targetSuggestion.suggested_text.split(',')[0];
+      return `### Concise Rewrite for ${loc}:
+
+**"${firstClause}."**
+
+*Tip: This tightens the wording while preserving the core technical accomplishment. You can apply it directly to your resume.*`;
     }
-    return `Regarding **${loc}** (*"${targetSuggestion.original_text}"*):\n\nI recommend upgrading to: **"${targetSuggestion.suggested_text}"**.\n\n${targetSuggestion.reasoning}`;
+
+    if (msgLower.includes('xyz') || msgLower.includes('google')) {
+      return `### Google X-Y-Z Breakdown for ${loc}:
+
+• **[X] Accomplished:** ${targetSuggestion.suggested_text.split('by')[0] || 'Enhanced system performance'}
+• **[Y] Measured by:** 25-40% measurable speedup and error rate reduction
+• **[Z] Doing what:** Architecting modular pipelines with automated validation
+
+**Drop-in Replacement:**
+**"${targetSuggestion.suggested_text}"**`;
+    }
+
+    return `### Targeted Advice for ${loc}
+
+- **Original:** *"${targetSuggestion.original_text}"*
+- **Recommendation:** **"${targetSuggestion.suggested_text}"**
+
+${targetSuggestion.reasoning}`;
   }
 
+  // Full resume critique
+  if (msgLower.includes('critique') || msgLower.includes('review') || msgLower.includes('evaluate')) {
+    const filename = doc?.filename || 'your resume';
+    return `### Comprehensive Resume Critique for ${filename}
+
+After analyzing your resume structure, content, and formatting, here is my detailed evaluation:
+
+1. **Executive Impact & Action Verbs**:
+   - Several bullet points start with passive duties (e.g., *"Responsible for"*, *"Worked on"*). Converting these to decisive action verbs (*"Spearheaded"*, *"Architected"*, *"Optimized"*) immediately elevates seniority.
+2. **Quantification & Metrics (The 40% Rule)**:
+   - Strong resumes quantify at least 40% of their bullet points. Ensure every major project includes metrics: percentage improvements, volume of requests handled, or team scale.
+3. **ATS Friendliness & Structure**:
+   - Your section headers are clearly mapped. Keep standard headings (*"Work Experience"*, *"Technical Skills"*, *"Projects"*) without complex table graphics to maintain 100% parseability.
+4. **Keyword Relevance**:
+   ${jdText ? '- When compared against your target JD, ensure exact keyword matches appear in both your Skills section and within relevant project bullets.' : '- Ensure your core tech stack matches the modern standards of the roles you are targeting.'}
+
+Would you like me to rewrite a specific project bullet using the Google X-Y-Z formula?`;
+  }
+
+  // Strengths and weaknesses
+  if (msgLower.includes('strength') || msgLower.includes('weakness')) {
+    return `### Strengths & Growth Areas
+
+### 🌟 Top Strengths:
+1. **Clear Technical Trajectory**: Your resume shows direct hands-on project experience with modern technologies and realistic implementation scopes.
+2. **Logical Organization**: Information flow follows standard recruiting practices, making it easy for recruiters to scan in 6 seconds.
+
+### ⚠️ Key Improvement Opportunities:
+1. **Unquantified Results**: Several achievements describe *what* you built, but not the *business or technical impact* it created.
+2. **Missing Specificity**: Replace generic phrases like *"various features"* with the exact modules and architectures you implemented.
+3. **Executive Summary Tightness**: If present, summarize your years of experience, core tech stack, and proudest engineering win in 3 focused lines.`;
+  }
+
+  // Google X-Y-Z formula rewrite
+  if (msgLower.includes('xyz') || msgLower.includes('google') || msgLower.includes('bullet') || msgLower.includes('rewrite')) {
+    return `### Google X-Y-Z Achievement Formula
+
+Google recruiters recommend structuring every bullet as:
+> **"Accomplished [X], as measured by [Y], by doing [Z]"**
+
+### Example Transformation:
+- ❌ **Passive (Before):** *"Worked on backend APIs for the e-commerce checkout page."*
+- ✅ **Google X-Y-Z (After):** **"Redesigned RESTful checkout APIs, reducing p99 response times by 38% and supporting 15,000+ daily concurrent users by implementing Redis caching and asynchronous workers."**
+
+Share any bullet point from your resume, and I'll transform it for you into this high-impact format!`;
+  }
+
+  // Executive summary
+  if (msgLower.includes('summary') || msgLower.includes('profile')) {
+    return `### Recommended Executive Summary Template
+
+Here is a 3-sentence high-impact formula tailored for tech resumes:
+
+> **"[Target Role / Title]** with expertise in **[Top 3 Technologies]**, proven in designing and deploying scalable, high-availability software systems. Experienced in end-to-end development, API optimization, and cross-functional delivery with a track record of driving **[Key Metric, e.g. 30%+ performance gains]**. Passionate about building robust architectures and delivering clean, maintainable code."
+
+*Tip: Customize the technologies in brackets with the specific stack listed on your resume.*`;
+  }
+
+  // Skills & Keywords
   if (msgLower.includes('skill') || msgLower.includes('keyword')) {
     if (jdText) {
-      return `**Target Job Description Skills Alignment:**\n\nEnsure high-priority technologies from the JD are explicitly listed under your **Technical Skills** section and substantiated in your project bullets with quantified accomplishments.`;
+      return `### JD Keyword Alignment
+
+To maximize your ATS match score against this job description:
+1. **Direct Match**: Cross-reference the required skills in the JD and ensure they appear verbatim in your **Technical Skills** section.
+2. **In-Context Demonstration**: Don't just list skills in a vacuum—mention them in at least one bullet point under your experience or projects.
+3. **Categorization**: Group your skills into clean buckets (*Languages*, *Frameworks*, *Databases & Cloud*, *Developer Tools*).`;
     }
-    return `**Skills Section Best Practice:**\nGroup technical skills into clear categories (*Languages, Frameworks, Databases, Tools*). Use standard casing (e.g. \`Python\`, \`FastAPI\`, \`React\`) for maximum ATS parseability.`;
+    return `### Technical Skills Optimization
+
+- **Categorize Clearly**: Group your skills logically (e.g. *Languages: Python, TypeScript | Frameworks: FastAPI, React | Cloud & DevOps: Docker, AWS, Git*).
+- **Remove Obsolete Tools**: Avoid listing basic utilities like MS Office or generic terms like "Problem Solving" in technical skills—demonstrate them through your project results instead.`;
   }
 
-  return `I'm your **Resume Improvement Assistant**. I can help you rewrite bullets using the Google X-Y-Z formula ("Accomplished [X] as measured by [Y], by doing [Z]"), explain ATS recommendations, or align your experience to a target JD.`;
+  return `I am your **ChatGPT-style Resume AI Coach**. 
+
+I can help you:
+- **Critique your entire resume** and identify weak wording
+- **Rewrite bullets** using Google's X-Y-Z formula (*Accomplished [X], measured by [Y], by doing [Z]*)
+- **Highlight strengths & weaknesses**
+- **Align qualifications** with a target job description
+
+What section would you like to dive into?`;
 }

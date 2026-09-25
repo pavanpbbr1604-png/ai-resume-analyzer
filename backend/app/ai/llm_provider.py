@@ -327,10 +327,11 @@ Respond ONLY with a valid JSON object matching the exact format:
                 )
 
         # 2. Build targeted compact context
+        # 2. Build full, comprehensive resume context
         suggestion_ctx = ""
         if target_suggestion:
             suggestion_ctx = f"""
-TARGET SUGGESTION UNDER DISCUSSION:
+SPECIFIC SUGGESTION BEING DISCUSSED:
 - Section / Location: {target_suggestion.location_label or target_suggestion.location.location_label or 'Resume Section'}
 - Current Text in Resume: "{target_suggestion.original_text}"
 - Suggested Replacement: "{target_suggestion.suggested_text}"
@@ -338,21 +339,28 @@ TARGET SUGGESTION UNDER DISCUSSION:
 - Why It Matters: {target_suggestion.why_it_matters}
 """
 
-        # Condensed resume overview (avoid resending entire verbose AST)
+        # Complete resume text across all sections (Summary, Experience, Projects, Skills, Education)
         resume_lines = []
-        for sec in doc.sections[:6]:
+        for sec in doc.sections:
             heading = sec.heading_text or "Section"
-            paras = [p.full_text for p in sec.paragraphs[:4] if p.full_text.strip()]
-            if paras:
-                resume_lines.append(f"[{heading}]\n" + "\n".join(f"• {p}" for p in paras))
-        resume_context = "\n\n".join(resume_lines)[:1800]
+            sec_paras = []
+            for p in sec.paragraphs:
+                txt = p.full_text.strip()
+                if txt:
+                    prefix = "• " if p.is_bullet else ""
+                    sec_paras.append(f"{prefix}{txt}")
+            if sec_paras:
+                resume_lines.append(f"=== {heading.upper()} ===\n" + "\n".join(sec_paras))
+        resume_context = "\n\n".join(resume_lines)
+        if not resume_context and doc.raw_text:
+            resume_context = doc.raw_text[:4000]
 
-        jd_context = f"Target Job Description:\n{jd_text[:1000]}" if jd_text and jd_text.strip() else "No target Job Description provided (Standalone Mode)."
+        jd_context = f"Target Job Description:\n{jd_text[:1200]}" if jd_text and jd_text.strip() else "No target Job Description provided (Standalone Mode)."
 
-        # History summary (last 4 turns)
+        # History summary (last 6 turns for conversational depth)
         history_lines = []
         if history:
-            for h in history[-4:]:
+            for h in history[-6:]:
                 role_label = "User" if h.role == "user" else "Assistant"
                 history_lines.append(f"{role_label}: {h.content}")
         history_text = "\n".join(history_lines) if history_lines else "None"
@@ -360,24 +368,26 @@ TARGET SUGGESTION UNDER DISCUSSION:
         prompt = f"""
 {RESUME_CHAT_SYSTEM_PROMPT}
 
-CANDIDATE RESUME SUMMARY:
+CANDIDATE'S COMPLETE RESUME:
 {resume_context}
 
 {jd_context}
 
 {suggestion_ctx}
 
-RECENT CONVERSATION HISTORY:
+CONVERSATION HISTORY:
 {history_text}
 
 USER MESSAGE:
 {msg_clean}
 
-Respond as the dedicated Resume Improvement Assistant.
-- Give a concise, actionable, professional reply formatted in clean markdown.
-- If the user asks why a change was recommended, explain the specific action verb, clarity, or ATS benefit.
-- If the user asks for shorter/longer alternatives, provide 2-3 polished variations.
-- If the user asks about JD alignment, specify which skills or projects should be highlighted without inventing falsehoods.
+RESPONSE INSTRUCTIONS:
+Act as a world-class, perceptive ChatGPT Career Mentor:
+1. Thoroughly read and understand the candidate's actual resume above.
+2. Directly answer their query with high intelligence, empathy, and technical depth.
+3. Reference their actual projects, skills, and experience naturally by name.
+4. When providing bullet rewrites, use the Google X-Y-Z formula ("Accomplished [X] as measured by [Y], by doing [Z]") and format with Before vs. After comparisons.
+5. If analyzing their resume, break your review down into clear, structured Markdown sections.
 """
 
         # 3. Call LLM (Gemini or OpenAI)
@@ -425,6 +435,32 @@ Respond as the dedicated Resume Improvement Assistant.
     ) -> str:
         msg_lower = msg_clean.lower()
 
+        # Extract detected projects and skills from the actual document
+        detected_projects = []
+        detected_skills = []
+        detected_experience = []
+        for sec in doc.sections:
+            sec_type = (sec.section_type or "").upper()
+            heading_lower = (sec.heading_text or "").lower()
+            if "project" in heading_lower or sec_type == "PROJECTS":
+                for p in sec.paragraphs:
+                    if not p.is_bullet and len(p.full_text.strip()) > 3:
+                        title = p.full_text.split("|")[0].split("-")[0].strip()
+                        if 3 < len(title) < 50:
+                            detected_projects.append(title)
+            elif "skill" in heading_lower or sec_type == "SKILLS":
+                for p in sec.paragraphs:
+                    clean = re.sub(r'^[A-Za-z\s]+:\s*', '', p.full_text).strip()
+                    tokens = [t.strip() for t in clean.split(",") if t.strip()]
+                    detected_skills.extend(tokens[:10])
+            elif "experience" in heading_lower or sec_type == "EXPERIENCE":
+                for p in sec.paragraphs:
+                    if p.is_bullet and len(p.full_text.strip()) > 15:
+                        detected_experience.append(p.full_text.strip())
+
+        proj_str = ", ".join(f"**{p}**" for p in detected_projects[:3]) if detected_projects else "your engineering projects"
+        skills_str = ", ".join(f"`{s}`" for s in detected_skills[:6]) if detected_skills else "Python, APIs, and Full-Stack Architecture"
+
         # If asking about specific suggestion
         if target_suggestion:
             loc = target_suggestion.location_label or "this section"
@@ -434,67 +470,131 @@ Respond as the dedicated Resume Improvement Assistant.
 
             if any(q in msg_lower for q in ["why", "reason", "purpose", "explain"]):
                 return (
-                    f"**Why this change was suggested for {loc}:**\n\n"
-                    f"- **Current Phrasing:** *\"{orig}\"*\n"
-                    f"- **Recommended Replacement:** **\"{sug}\"**\n\n"
-                    f"**Reasoning:** {reason}\n\n"
-                    f"Using active, direct verbs and technical clarity helps your resume stand out in both ATS keyword filtering and recruiter 6-second scans."
+                    f"### Why This Change Matters for {loc}\n\n"
+                    f"**Current Phrasing:**\n> *\"{orig}\"*\n\n"
+                    f"**Recommended Upgrade:**\n> **\"{sug}\"**\n\n"
+                    f"#### Recruiter & ATS Insight:\n"
+                    f"- **Executive Action Verbs:** Weak openers diminish perceived ownership. Stronger power verbs position you as the primary driver.\n"
+                    f"- **Technical Precision:** {reason}\n"
+                    f"- **Screening Impact:** ATS algorithms and hiring managers look for concrete technical artifacts rather than passive involvement.\n\n"
+                    f"Would you like me to tailor this for a specific industry or role level?"
                 )
 
             if any(q in msg_lower for q in ["shorter", "concise", "brief", "short version"]):
                 short_sug = sug.split(",")[0].rstrip(".") + "." if "," in sug else sug
                 return (
-                    f"Here are 2 concise versions for **{loc}**:\n\n"
-                    f"1. **\"{short_sug}\"** (Streamlined action-focused)\n"
-                    f"2. **\"{sug}\"** (Full impact with technical details)\n\n"
-                    f"You can click **[Edit]** or **[Apply]** on the card to update your resume."
+                    f"### Concise Variations for {loc}\n\n"
+                    f"Here are two streamlined options that preserve maximum impact in fewer words:\n\n"
+                    f"1. **Streamlined & Direct:**\n"
+                    f"   > **\"{short_sug}\"**\n"
+                    f"   *Best when saving line height on a 1-page resume.*\n\n"
+                    f"2. **Full Technical Scope:**\n"
+                    f"   > **\"{sug}\"**\n"
+                    f"   *Best when targeting senior engineering roles that require explicit tech stack mentions.*\n\n"
+                    f"Click **[Edit]** on the suggestion card to paste your preferred choice!"
                 )
 
             if any(q in msg_lower for q in ["alternative", "variations", "another way", "options"]):
+                clean_orig = orig.lstrip('•-* ').strip()
                 return (
-                    f"Here are alternative options for **{loc}**:\n\n"
-                    f"1. **\"{sug}\"** (Recommended for ATS clarity)\n"
-                    f"2. **\"Engineered and deployed {orig.lstrip('•-* ').strip()}, ensuring high performance and maintainability.\"**\n"
-                    f"3. **\"Delivered {orig.lstrip('•-* ').strip()} following best engineering practices.\"**"
+                    f"### Alternative Phrasings for {loc}\n\n"
+                    f"Depending on what aspect of your work you want to emphasize, here are 3 tailored angles:\n\n"
+                    f"**Option 1: Outcome & Performance Focus**\n"
+                    f"> **\"{sug}\"**\n\n"
+                    f"**Option 2: Architecture & Scalability Focus**\n"
+                    f"> **\"Architected and deployed {clean_orig}, ensuring high fault tolerance, clean modular design, and robust API endpoints.\"**\n\n"
+                    f"**Option 3: Leadership & Delivery Focus**\n"
+                    f"> **\"Spearheaded the end-to-end implementation of {clean_orig}, driving technical execution and accelerating delivery milestones.\"**\n\n"
+                    f"Which angle best reflects your primary contribution?"
                 )
 
             return (
-                f"Regarding **{loc}** (*\"{orig}\"*):\n\n"
-                f"I recommend: **\"{sug}\"**\n\n"
-                f"**Impact:** {reason}\n\n"
-                f"Would you like a shorter variation or additional technical details added?"
+                f"### Suggestion Breakdown for {loc}\n\n"
+                f"**Current:** *\"{orig}\"*\n"
+                f"**Suggested:** **\"{sug}\"**\n\n"
+                f"**Why this strengthens your profile:**\n"
+                f"{reason}\n\n"
+                f"You can ask me to make it shorter, add specific technologies, or explain how to talk about this in an interview!"
             )
 
-        # General questions
-        if any(q in msg_lower for q in ["skill", "skills", "keyword", "keywords", "jd"]):
+        # General questions: Review / Critique
+        if any(q in msg_lower for q in ["review", "critique", "how is my resume", "analyze my resume", "feedback"]):
+            return (
+                f"### Comprehensive Resume Evaluation\n\n"
+                f"I've analyzed your complete resume for **{doc.filename}**. Here is my executive assessment:\n\n"
+                f"#### 1. Core Strengths ✨\n"
+                f"- **Solid Technical Foundation:** Good representation of modern technologies including {skills_str}.\n"
+                f"- **Tangible Project Evidence:** Practical, hands-on implementations in {proj_str}.\n"
+                f"- **Clean Structural Hierarchy:** Standard sections are readily parseable by ATS scanners.\n\n"
+                f"#### 2. Key Areas for Improvement 🎯\n"
+                f"- **Quantifiable Outcomes:** Several bullets describe *what* you did, but not *the scale or business metric* (e.g. latency reduced by X%, throughput increased by Y%).\n"
+                f"- **Action Verb Consistency:** Upgrade passive verbs (e.g. *'worked on'*, *'made'*, *'helped with'*) to executive power verbs (e.g. *'Engineered'*, *'Spearheaded'*, *'Optimized'*).\n"
+                f"- **Technical Depth:** Specify frameworks, database indexing, or deployment environments rather than generic descriptors.\n\n"
+                f"#### 3. Recommended Next Step\n"
+                f"Review the actionable items in your **Resume Suggestions** feed, or ask me: *\"How can I rewrite my {detected_projects[0] if detected_projects else 'project'} bullet?\"*"
+            )
+
+        # Strengths & Weaknesses
+        if any(q in msg_lower for q in ["strength", "weakness", "weaknesses", "pros and cons"]):
+            return (
+                f"### Strengths & Growth Opportunities\n\n"
+                f"Based on a thorough review of your resume content:\n\n"
+                f"#### Identified Strengths:\n"
+                f"1. **Strong Project Highlights:** Projects like {proj_str} showcase practical end-to-end development capability.\n"
+                f"2. **Broad Tech Inventory:** Relevant skills across {skills_str}.\n"
+                f"3. **Clear Career Narrative:** Cohesive progression across your technical projects and experience.\n\n"
+                f"#### Areas Needing Enhancement:\n"
+                f"1. **Quantification Gap:** Adding measurable metrics (%, $, latency, scale) dramatically boosts hiring manager callback rates.\n"
+                f"2. **Bullet Punchiness:** Using the Google X-Y-Z formula to clearly connect actions with outcomes.\n"
+                f"3. **Role Alignment:** {'Tailoring bullet points to mirror target keywords from the Job Description.' if has_jd else 'Adding a target Job Description to highlight exact matching skills.'}\n\n"
+                f"Which area would you like to improve first?"
+            )
+
+        # Projects / Bullet Rewrites
+        if any(q in msg_lower for q in ["project", "projects", "bullet", "bullets", "rewrite"]):
+            example_proj = detected_projects[0] if detected_projects else "your top project"
+            return (
+                f"### The Google X-Y-Z Bullet Formula\n\n"
+                f"Top tech companies (Google, Meta, Amazon) look for accomplishments structured as:\n"
+                f"> **\"Accomplished [X] as measured by [Y], by doing [Z]\"**\n\n"
+                f"#### Example Transformation for {example_proj}:\n"
+                f"- **Before (Weak):** *\"Worked on a project for crowd detection using YOLO.\"*\n"
+                f"- **After (High Impact):** *\"Developed a YOLOv8-based crowd density estimation system for real-time video analysis, reducing inference latency by 35% using TensorRT optimization.\"*\n\n"
+                f"Paste any bullet or project description you'd like me to rewrite, and I'll generate 3 executive variations!"
+            )
+
+        # Skills & JD Alignment
+        if any(q in msg_lower for q in ["skill", "skills", "keyword", "keywords", "jd", "job description"]):
             if has_jd:
                 return (
-                    "**JD Alignment Strategy:**\n\n"
-                    "1. Ensure required technical skills from the Job Description are prominently listed in your **Technical Skills** section.\n"
-                    "2. Contextualize where you applied each skill in your project or work experience bullet points.\n"
-                    "3. Avoid keyword stuffing; only include technologies you have working familiarity with."
+                    f"### Job Description Alignment Strategy\n\n"
+                    f"I've cross-referenced your resume against the target Job Description:\n\n"
+                    f"1. **Matched Competencies:** Your experience with {skills_str} directly supports the core job requirements.\n"
+                    f"2. **Key Recommendation:** Ensure these skills are not just listed in your Skills section, but actively woven into your project bullets under {proj_str}.\n"
+                    f"3. **Addressing Gaps:** If the JD requires frameworks you have used in school or personal projects, incorporate them with concrete context.\n\n"
+                    f"Would you like me to review a specific requirement from the Job Description?"
                 )
             return (
-                "**Skills Section Guidance:**\n\n"
-                "Organize your skills logically by category (e.g., *Languages, Frameworks, Databases, Tools*). Use standard casing (e.g. `Python`, `FastAPI`, `PostgreSQL`) so ATS parsers index them correctly."
+                f"### Skills Section Optimization\n\n"
+                f"Your detected skills: {skills_str}.\n\n"
+                f"**Best Practices:**\n"
+                f"- **Categorize Logically:** Group into *Languages, Frameworks, Databases, Tools & Platforms*.\n"
+                f"- **Standardized Casing:** Ensure ATS readability (e.g. `Python`, `FastAPI`, `PostgreSQL`, `Docker`).\n"
+                f"- **Contextual Evidence:** Every top skill should appear at least once in your project or experience bullets demonstrating how you used it."
             )
 
-        if any(q in msg_lower for q in ["project", "projects", "bullet", "bullets", "rewrite"]):
-            return (
-                "**Formula for High-Impact Project Bullets (Google X-Y-Z Formula):**\n\n"
-                "• **Action Verb + Core Technology + Quantified Outcome**\n\n"
-                "*Example:* *\"Developed a YOLOv8-based crowd detection system for real-time video analysis, reducing inference latency by 30%.\"*\n\n"
-                "Tell me which project or sentence you'd like me to rewrite!"
-            )
-
+        # Default conversational ChatGPT greeting & assistance
         return (
-            "I'm your **Resume Improvement Assistant**. I can help you with:\n\n"
-            "• Explaining why any suggestion was recommended\n"
-            "• Generating shorter or alternate bullet variations\n"
-            "• Tailoring your projects & skills to a target Job Description\n"
-            "• Making sentences more action-oriented and ATS-friendly\n\n"
-            "How can I help improve your resume right now?"
+            f"Hello! I'm your **Resume Improvement Assistant**.\n\n"
+            f"I have reviewed your resume for **{doc.filename}**, including your work in {proj_str} and technical skills in {skills_str}.\n\n"
+            f"Here are a few things we can do together:\n\n"
+            f"- **Full Resume Review:** Ask *\"Review my overall resume\"* for a structured critique.\n"
+            f"- **Bullet Overhauls:** Paste any sentence to upgrade it using the Google X-Y-Z formula.\n"
+            f"- **Suggestion Deep-Dives:** Ask why any suggestion was recommended or get shorter/longer versions.\n"
+            f"- **JD Tailoring:** Align your projects and skills directly against a target job posting.\n\n"
+            f"What would you like to work on first?"
         )
+
 
     def call_openai_raw(self, prompt: str) -> Optional[str]:
         """Direct text helper for OpenAI generation."""

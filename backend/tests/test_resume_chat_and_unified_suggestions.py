@@ -144,3 +144,21 @@ def test_resume_chat_with_specific_suggestion_context(sample_doc):
     assert data["status"] == "success"
     assert data["suggestion_id"] == sug.suggestion_id
     assert len(data["reply"]) > 20
+
+def test_generate_full_resume_endpoint(sample_doc):
+    response = client.post(
+        "/api/analyses/generate-full-resume",
+        json={
+            "resume_id": sample_doc.document_id,
+            "jd_text": "Looking for a Senior Python Developer with PyTorch and YOLO experience."
+        }
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "generated_resume" in data
+    assert len(data["generated_resume"]) > 50
+    assert "PROJECTS" in data["generated_resume"] or "TECHNICAL SKILLS" in data["generated_resume"]
+    assert "improvements_summary" in data
+    assert len(data["improvements_summary"]) > 0
+

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit3, Mic, Sparkles, Layers } from 'lucide-react';
+import { Mic, Sparkles, Layers } from 'lucide-react';
 
 interface SidebarProps {
   activeView: 'optimizer' | 'assistant' | 'rewriter' | 'interview';
@@ -47,9 +47,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onSelectView }) =>
               ? 'text-white bg-[#ff5722] font-bold shadow-md'
               : 'text-[#e4beb4] hover:bg-[#282a2c] hover:text-[#ff5722]'
           }`}
+          title="Generate an upgraded, production-ready resume using Gemini AI"
         >
-          <Edit3 size={16} />
-          <span>Rewriter</span>
+          <Sparkles size={16} />
+          <span>AI Resume Generator</span>
         </button>
 
         <button

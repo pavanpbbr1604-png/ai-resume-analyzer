@@ -7,9 +7,9 @@ import {
 } from '../types';
 import { SuggestionCard } from './SuggestionCard';
 import { ResumeChat } from './ResumeChat';
+import { GeminiResumeGenerator } from './GeminiResumeGenerator';
 import { api } from '../services/api';
 import {
-  Zap,
   ArrowLeft,
   Copy,
   Check,
@@ -83,10 +83,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
   };
 
 
-  // Bullet Enhancer state
-  const [inputBullet, setInputBullet] = useState<string>('');
-  const [enhancedOptions, setEnhancedOptions] = useState<string[]>([]);
-  const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
 
   // Interview Study Plan state
   const [interviewPlan, setInterviewPlan] = useState<InterviewPreparationPlan | null>(null);
@@ -141,19 +137,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
     return `https://www.youtube.com/results?search_query=${query}`;
   };
 
-
-  const handleEnhanceBullet = async () => {
-    if (!inputBullet.trim()) return;
-    setIsEnhancing(true);
-    try {
-      const options = await api.enhanceBullet(inputBullet);
-      setEnhancedOptions(options);
-    } catch (err) {
-      console.error('Enhance failed:', err);
-    } finally {
-      setIsEnhancing(false);
-    }
-  };
 
   const handleFetchInterviewPlan = async () => {
     setIsLoadingPlan(true);
@@ -415,9 +398,10 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
                 : 'text-[#e4beb4] hover:text-[#ff5722]'
             }`}
             onClick={() => setActiveTab('enhancer')}
+            title="Generate a complete upgraded resume using Gemini AI"
           >
-            <Zap size={13} />
-            <span>REWRITER</span>
+            <Sparkles size={13} className="text-[#ff5722]" />
+            <span>AI RESUME GENERATOR</span>
           </button>
 
           <button
@@ -499,38 +483,14 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
         )}
 
 
-        {/* Tab 2: AI Rewriter */}
+        {/* Tab 2: Gemini AI Full-Resume Generator */}
         {activeTab === 'enhancer' && (
-          <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1">
-            <button
-              onClick={() => setActiveTab('suggestions')}
-              className="text-[#ff5722] hover:underline font-label-caps text-xs flex items-center gap-1 self-start"
-            >
-              <ArrowLeft size={14} /> ← BACK TO SUGGESTIONS
-            </button>
-            <h3 className="font-headline-md text-md text-[#ffb5a0] flex items-center gap-2">
-              <Zap size={16} className="text-[#ff5722]" /> Bullet Rewriter
-            </h3>
-            <textarea
-              value={inputBullet}
-              onChange={(e) => setInputBullet(e.target.value)}
-              placeholder="Paste a bullet point to improve with action verbs..."
-              className="w-full h-24 bg-[#1a1c1e] text-[#e2e2e5] border border-[#2C3136] p-3 text-xs font-mono rounded-sm focus:border-[#ff5722] outline-none"
-            />
-            <button
-              onClick={handleEnhanceBullet}
-              disabled={isEnhancing || !inputBullet.trim()}
-              className="w-full bg-[#ff5722] text-white py-2 font-label-caps text-xs glow-orange hover:bg-opacity-90 transition-all cursor-pointer font-bold"
-            >
-              {isEnhancing ? 'ENHANCING...' : 'REWRITE BULLET'}
-            </button>
-            {enhancedOptions.map((opt, idx) => (
-              <div key={idx} className="border border-[#2C3136] bg-[#1a1c1e] p-3 text-xs text-[#00C853] font-mono leading-relaxed">
-                <div className="text-[9px] font-label-caps text-[#ff5722] mb-1">OPTION {idx + 1}</div>
-                {opt}
-              </div>
-            ))}
-          </div>
+          <GeminiResumeGenerator
+            documentId={documentId || document?.document_id}
+            document={document}
+            currentJdText={currentJdText}
+            onBackToSuggestions={() => setActiveTab('suggestions')}
+          />
         )}
 
         {/* Tab 3: Systematic Personalized Interview Preparation Dashboard */}

@@ -50,6 +50,18 @@ async def enhance_bullet(payload: dict):
     options = AIService.enhance_bullet(bullet_text, target_role)
     return {"status": "success", "options": options}
 
+@router.post("/generate-full-resume")
+async def generate_full_resume(payload: dict):
+    resume_id = payload.get("resume_id")
+    if not resume_id:
+        raise HTTPException(status_code=400, detail="resume_id is required.")
+    doc = DocumentService.get_document(resume_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Resume not found.")
+    jd_text = payload.get("jd_text", "")
+    return AIService.generate_full_resume(doc=doc, jd_text=jd_text)
+
+
 
 # Cover letter option temporarily disabled for now; will be restored when needed.
 @router.post("/cover-letter", deprecated=True)

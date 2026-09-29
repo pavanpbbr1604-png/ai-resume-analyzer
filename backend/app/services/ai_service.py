@@ -111,6 +111,15 @@ class AIService:
         return provider.generate_interview_plan(doc, jd)
 
     @classmethod
+    def generate_full_resume(
+        cls,
+        doc: NormalizedDocument,
+        jd_text: str = ""
+    ) -> dict:
+        provider = LLMAIProvider()
+        return provider.generate_full_resume(doc=doc, jd_text=jd_text)
+
+    @classmethod
     def enhance_bullet(cls, bullet_text: str, target_role: Optional[str] = "Software Engineer") -> List[str]:
         clean = bullet_text.strip().lstrip("•-* ").strip()
         role = target_role or "Software Engineer"

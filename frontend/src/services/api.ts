@@ -122,6 +122,25 @@ export const api = {
     return data.options || [];
   },
 
+  async generateFullResume(
+    resumeId: string,
+    jdText = ''
+  ): Promise<{
+    status: string;
+    model: string;
+    generated_resume: string;
+    improvements_summary: string[];
+  }> {
+    const res = await fetch(`${API_BASE}/analyses/generate-full-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resume_id: resumeId, jd_text: jdText }),
+    });
+    if (!res.ok) throw new Error('Failed to generate full resume with Gemini AI.');
+    return res.json();
+  },
+
+
   async generateCoverLetter(resumeId: string, jdText = '', jdTitle = 'Target Role', jdCompany = 'Target Company'): Promise<string> {
     const res = await fetch(`${API_BASE}/analyses/cover-letter?resume_id=${encodeURIComponent(resumeId)}`, {
       method: 'POST',

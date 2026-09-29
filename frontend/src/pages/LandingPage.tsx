@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { BLOG_POSTS, BlogPost } from '../data/blogData';
 import { ArrowRight, X, Clock, User } from 'lucide-react';
+import { UserProfileBadge } from '../components/UserProfileBadge';
 
 interface LandingPageProps {
   onLaunchApp: () => void;
@@ -131,6 +132,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
         {/* Right: Launch Workspace CTA */}
         <div className="hidden sm:flex items-center gap-4">
+          <UserProfileBadge />
           <button
             onClick={onLaunchApp}
             className="bg-[#ff5722] text-white px-5 py-2 rounded-full font-label-caps text-xs glow-orange hover:bg-opacity-90 transition-all font-bold cursor-pointer"

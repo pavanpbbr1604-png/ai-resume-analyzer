@@ -13,6 +13,7 @@ import {
   SuggestionStatus,
 } from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const SAMPLE_NORMALIZED_DOC: NormalizedDocument = {
   document_id: 'doc_sample_001',
@@ -124,6 +125,8 @@ interface WorkspacePageProps {
 }
 
 export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) => {
+  const { user, openAuthModal, pendingUpload, setPendingUpload } = useAuth();
+
   const [doc, setDoc] = useState<NormalizedDocument | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResultResponse | null>(null);
   const [suggestions, setSuggestions] = useState<AISuggestionItem[]>([]);
@@ -146,6 +149,15 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
 
   // Ref to the upload panel so popup "Go Back" can focus the JD textarea.
   const uploadPanelRef = useRef<LeftUploadPanelHandle>(null);
+
+  // Auto-resume pending upload after user logs in with Google or Email
+  useEffect(() => {
+    if (user && pendingUpload) {
+      const { file, jdText, continueWithoutJd } = pendingUpload;
+      setPendingUpload(null);
+      handleAnalyze(file, jdText, continueWithoutJd);
+    }
+  }, [user, pendingUpload]);
 
   const activeTab: 'suggestions' | 'chat' | 'enhancer' | 'interview' =
     activeSidebarView === 'optimizer'
@@ -383,6 +395,13 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
    * unless `continueWithoutJd` is explicitly true (e.g. popup confirmed).
    */
   const handleAnalyze = async (file: File, jdText: string, continueWithoutJd = false) => {
+    // Auth Gate: Prompt sign in/up when attempting to upload a resume
+    if (!user) {
+      setPendingUpload({ file, jdText, continueWithoutJd });
+      openAuthModal('Sign in with Google or Email to upload your resume and run an ATS analysis.');
+      return;
+    }
+
     const hasJdInput = Boolean(jdText && jdText.trim());
 
     // If no JD and not yet confirmed via popup, show popup.

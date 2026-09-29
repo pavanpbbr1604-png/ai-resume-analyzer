@@ -1,5 +1,6 @@
 import React from 'react';
 import { Menu } from 'lucide-react';
+import { UserProfileBadge } from './UserProfileBadge';
 
 interface NavbarProps {
   onUploadClick?: () => void;
@@ -36,10 +37,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onBackToHome }) => {
         <span className="text-2xl text-[#ff5722] select-none">✳︎</span>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
         <span className="font-label-caps text-xs text-[#e4beb4] hidden sm:inline-block">
           System Status: <span className="text-[#00C853] font-bold">Active</span>
         </span>
+        <UserProfileBadge />
         <button
           onClick={() => alert('📱 Mobile menu toggled')}
           title="Toggle Menu"

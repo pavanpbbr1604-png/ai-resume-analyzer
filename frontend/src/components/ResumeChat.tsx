@@ -156,7 +156,6 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
   currentJdText = '',
   activeSuggestion,
   onClearActiveSuggestion,
-  onApplySuggestion,
 }) => {
   const [messages, setMessages] = useState<ResumeChatMessage[]>(() => [
     {
@@ -351,14 +350,6 @@ export const ResumeChat: React.FC<ResumeChatProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {onApplySuggestion && activeSuggestion.status !== 'APPLIED' && (
-              <button
-                onClick={() => onApplySuggestion(activeSuggestion.suggestion_id)}
-                className="bg-[#00C853] hover:bg-[#00E676] text-black font-label-caps text-[9px] px-2 py-0.5 rounded-sm font-bold transition-colors cursor-pointer"
-              >
-                APPLY
-              </button>
-            )}
             {onClearActiveSuggestion && (
               <button
                 onClick={onClearActiveSuggestion}

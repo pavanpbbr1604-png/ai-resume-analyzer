@@ -1,14 +1,14 @@
 import React from 'react';
 import { AISuggestionItem } from '../types';
-import { HelpCircle, MessageSquareQuote, Check, Edit2, MapPin, EyeOff } from 'lucide-react';
+import { HelpCircle, MessageSquareQuote, Check, MapPin, EyeOff } from 'lucide-react';
 
 interface SuggestionCardProps {
   suggestion: AISuggestionItem;
   isSelected: boolean;
   onSelect: () => void;
-  onApply: (suggestionId: string) => void;
+  onApply?: (suggestionId: string) => void;
   onIgnore: (suggestionId: string) => void;
-  onEdit: (suggestion: AISuggestionItem) => void;
+  onEdit?: (suggestion: AISuggestionItem) => void;
   onAskAgent?: (suggestion: AISuggestionItem) => void;
 }
 
@@ -16,9 +16,7 @@ export const SuggestionCard: React.FC<SuggestionCardProps> = ({
   suggestion,
   isSelected,
   onSelect,
-  onApply,
   onIgnore,
-  onEdit,
   onAskAgent,
 }) => {
   const isApplied = suggestion.status === 'APPLIED' || suggestion.status === 'CUSTOM_APPLIED';
@@ -147,32 +145,6 @@ export const SuggestionCard: React.FC<SuggestionCardProps> = ({
                 <span>ASK AGENT</span>
               </button>
             )}
-
-            {/* Edit Button */}
-            {suggestion.suggested_text && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(suggestion);
-                }}
-                className="font-label-caps text-[10px] text-[#e4beb4] hover:text-white px-2.5 py-1 border border-[#2C3136] hover:border-[#ff5722] rounded-sm transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Edit2 size={11} />
-                <span>EDIT</span>
-              </button>
-            )}
-
-            {/* Apply Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onApply(suggestion.suggestion_id);
-              }}
-              className="font-label-caps text-[10px] bg-[#ff5722] text-white px-3.5 py-1 hover:bg-[#ff7043] transition-all font-bold rounded-sm shadow-sm flex items-center gap-1 cursor-pointer glow-orange"
-            >
-              <Check size={12} />
-              <span>APPLY</span>
-            </button>
           </div>
         )}
       </div>

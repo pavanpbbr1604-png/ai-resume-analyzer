@@ -63,13 +63,18 @@ async def generate_full_resume(payload: dict):
 
 
 
-# Cover letter option temporarily disabled for now; will be restored when needed.
-@router.post("/cover-letter", deprecated=True)
+@router.post("/cover-letter")
 async def generate_cover_letter(
     jd: Optional[JobDescriptionRequest] = None,
     resume_id: str = Query(...)
 ):
-    raise HTTPException(status_code=410, detail="Cover letter generator has been temporarily disabled.")
+    doc = DocumentService.get_document(resume_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Resume not found.")
+    actual_jd = jd or JobDescriptionRequest(text="")
+    letter = AIService.generate_cover_letter(doc, actual_jd)
+    return {"status": "success", "cover_letter": letter}
+
 
 @router.post("/interview-plan", response_model=InterviewPreparationPlan)
 async def get_interview_plan(

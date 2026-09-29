@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '../components/Navbar';
-import { Sidebar } from '../components/Sidebar';
+import { Sidebar, SidebarItemKey } from '../components/Sidebar';
 import { WebDocumentViewer } from '../components/WebDocumentViewer';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { LeftUploadPanel, LeftUploadPanelHandle } from '../components/LeftUploadPanel';
 import { EditModal } from '../components/EditModal';
+import { CoverLetterModal } from '../components/CoverLetterModal';
+import { TemplatesModal } from '../components/TemplatesModal';
+import { BlogModal } from '../components/BlogModal';
+import { JobAlertModal } from '../components/JobAlertModal';
+import { WebsiteModal } from '../components/WebsiteModal';
+import { GrammarCheckerModal } from '../components/GrammarCheckerModal';
+import { ToolsModal } from '../components/ToolsModal';
+import { FeedbackModal } from '../components/FeedbackModal';
 import { UploadCloud, Target, ShieldCheck, X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import {
   NormalizedDocument,
@@ -135,6 +143,52 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [activeSidebarView, setActiveSidebarView] = useState<'optimizer' | 'assistant' | 'rewriter' | 'interview'>('optimizer');
+  const [activeSidebarItem, setActiveSidebarItem] = useState<SidebarItemKey>('resume');
+
+  // Modals for the new sidebar suite items
+  const [showCoverLetterModal, setShowCoverLetterModal] = useState<boolean>(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
+  const [showBlogModal, setShowBlogModal] = useState<boolean>(false);
+  const [showJobAlertModal, setShowJobAlertModal] = useState<boolean>(false);
+  const [showWebsiteModal, setShowWebsiteModal] = useState<boolean>(false);
+  const [showGrammarModal, setShowGrammarModal] = useState<boolean>(false);
+  const [showToolsModal, setShowToolsModal] = useState<boolean>(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false);
+
+  const handleSidebarSelect = (item: SidebarItemKey) => {
+    setActiveSidebarItem(item);
+    if (item === 'dashboard') {
+      if (!doc) {
+        // already on upload dashboard
+      } else {
+        setActiveSidebarView('optimizer');
+      }
+    } else if (item === 'resume') {
+      setActiveSidebarView('optimizer');
+    } else if (item === 'cover-letter') {
+      setShowCoverLetterModal(true);
+    } else if (item === 'ats-checker') {
+      setActiveSidebarView('optimizer');
+    } else if (item === 'grammar-checker') {
+      setShowGrammarModal(true);
+    } else if (item === 'interview') {
+      setActiveSidebarView('interview');
+      if (!hasJd) setShowJdDrawer(true);
+    } else if (item === 'website') {
+      setShowWebsiteModal(true);
+    } else if (item === 'templates') {
+      setShowTemplatesModal(true);
+    } else if (item === 'job-alert') {
+      setShowJobAlertModal(true);
+    } else if (item === 'blog') {
+      setShowBlogModal(true);
+    } else if (item === 'tools') {
+      setShowToolsModal(true);
+    } else if (item === 'feedback') {
+      setShowFeedbackModal(true);
+    }
+  };
+
   const [activeSuggestionForChat, setActiveSuggestionForChat] = useState<AISuggestionItem | null>(null);
   const [historyStack, setHistoryStack] = useState<Array<{ suggestionId: string; prevStatus: string; prevDoc: NormalizedDocument }>>([]);
   const [version, setVersion] = useState<number>(1);
@@ -711,13 +765,8 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
       <div className="workspace-layout flex-1 flex w-full relative z-10 overflow-hidden">
         {/* Left Sidebar */}
         <Sidebar
-          activeView={activeSidebarView}
-          onSelectView={(v) => {
-            setActiveSidebarView(v);
-            if (v === 'interview' && !hasJd) {
-              setShowJdDrawer(true);
-            }
-          }}
+          activeItem={activeSidebarItem}
+          onSelectItem={handleSidebarSelect}
         />
 
         {/* WORKSPACE AREA */}
@@ -888,6 +937,83 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
           suggestion={editingSuggestion}
           onClose={() => setEditingSuggestion(null)}
           onApplyCustom={handleApplyCustom}
+        />
+      )}
+
+      {/* Feature Modals from Sidebar Suite */}
+      {showCoverLetterModal && (
+        <CoverLetterModal
+          isOpen={showCoverLetterModal}
+          onClose={() => setShowCoverLetterModal(false)}
+          resumeId={doc?.document_id}
+          defaultJdText={currentJdText}
+        />
+      )}
+
+      {showTemplatesModal && (
+        <TemplatesModal
+          isOpen={showTemplatesModal}
+          onClose={() => setShowTemplatesModal(false)}
+        />
+      )}
+
+      {showBlogModal && (
+        <BlogModal
+          isOpen={showBlogModal}
+          onClose={() => setShowBlogModal(false)}
+        />
+      )}
+
+      {showJobAlertModal && (
+        <JobAlertModal
+          isOpen={showJobAlertModal}
+          onClose={() => setShowJobAlertModal(false)}
+        />
+      )}
+
+      {showWebsiteModal && (
+        <WebsiteModal
+          isOpen={showWebsiteModal}
+          onClose={() => setShowWebsiteModal(false)}
+          document={doc}
+        />
+      )}
+
+      {showGrammarModal && (
+        <GrammarCheckerModal
+          isOpen={showGrammarModal}
+          onClose={() => setShowGrammarModal(false)}
+          document={doc}
+        />
+      )}
+
+      {showToolsModal && (
+        <ToolsModal
+          isOpen={showToolsModal}
+          onClose={() => setShowToolsModal(false)}
+          onSelectTool={(toolId) => {
+            if (toolId === 'rewriter') {
+              setActiveSidebarItem('resume');
+              setActiveSidebarView('rewriter');
+            } else if (toolId === 'assistant') {
+              setActiveSidebarItem('resume');
+              setActiveSidebarView('assistant');
+            } else if (toolId === 'interview') {
+              setActiveSidebarItem('interview');
+              setActiveSidebarView('interview');
+              if (!hasJd) setShowJdDrawer(true);
+            } else if (toolId === 'ats-checker') {
+              setActiveSidebarItem('ats-checker');
+              setActiveSidebarView('optimizer');
+            }
+          }}
+        />
+      )}
+
+      {showFeedbackModal && (
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
         />
       )}
     </div>

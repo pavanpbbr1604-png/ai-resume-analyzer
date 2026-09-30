@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  LayoutDashboard,
+  LayoutGrid,
   FileText,
   FileCheck,
   CheckSquare,
@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onSelectItem }) =>
   const avatarUrl = user?.user_metadata?.avatar_url;
 
   const navItems = [
-    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { key: 'resume', label: 'Resume', icon: FileText },
     { key: 'cover-letter', label: 'Cover Letter', icon: Mail },
     { key: 'ats-checker', label: 'ATS Resume Checker', icon: FileCheck },
@@ -120,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onSelectItem }) =>
             >
               {/* Left Accent Indicator Bar (Active State) */}
               {isActive && (
-                <div className="absolute left-0 top-2 bottom-2 w-1.5 bg-[#ff5722] rounded-r-full shadow-sm" />
+                <div className="absolute left-0 top-1.5 bottom-1.5 w-2 bg-[#ff5722] rounded-r-lg shadow-sm" />
               )}
 
               {/* Icon */}

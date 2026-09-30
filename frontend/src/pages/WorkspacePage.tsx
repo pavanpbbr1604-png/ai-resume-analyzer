@@ -13,6 +13,7 @@ import { WebsiteModal } from '../components/WebsiteModal';
 import { GrammarCheckerModal } from '../components/GrammarCheckerModal';
 import { ToolsModal } from '../components/ToolsModal';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { DashboardView } from '../components/DashboardView';
 import { UploadCloud, Target, ShieldCheck, X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import {
   NormalizedDocument,
@@ -143,7 +144,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [activeSidebarView, setActiveSidebarView] = useState<'optimizer' | 'assistant' | 'rewriter' | 'interview'>('optimizer');
-  const [activeSidebarItem, setActiveSidebarItem] = useState<SidebarItemKey>('resume');
+  const [activeSidebarItem, setActiveSidebarItem] = useState<SidebarItemKey>('dashboard');
 
   // Modals for the new sidebar suite items
   const [showCoverLetterModal, setShowCoverLetterModal] = useState<boolean>(false);
@@ -158,11 +159,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
   const handleSidebarSelect = (item: SidebarItemKey) => {
     setActiveSidebarItem(item);
     if (item === 'dashboard') {
-      if (!doc) {
-        // already on upload dashboard
-      } else {
-        setActiveSidebarView('optimizer');
-      }
+      // Switches to Dashboard View
     } else if (item === 'resume') {
       setActiveSidebarView('optimizer');
     } else if (item === 'cover-letter') {
@@ -770,21 +767,44 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
         />
 
         {/* WORKSPACE AREA */}
-        <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden p-4 gap-4 relative">
-          {!doc ? (
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+          {activeSidebarItem === 'dashboard' ? (
+            <DashboardView
+              document={doc}
+              analysis={analysis}
+              onNavigateToResume={() => {
+                setActiveSidebarItem('resume');
+                setActiveSidebarView('optimizer');
+              }}
+              onOpenGenerator={() => {
+                setActiveSidebarItem('resume');
+                setActiveSidebarView('rewriter');
+              }}
+              onOpenInterview={() => {
+                setActiveSidebarItem('interview');
+                setActiveSidebarView('interview');
+                if (!hasJd) setShowJdDrawer(true);
+              }}
+              onOpenCoverLetter={() => setShowCoverLetterModal(true)}
+              onUploadClick={handleResetUpload}
+              onLoadSample={runSampleDemo}
+            />
+          ) : !doc ? (
             /* FULL-PAGE DRAG & DROP SPACE WHEN NO DOCUMENT IS ACTIVE */
-            <div className="w-full h-full flex flex-col border border-[#2C3136] bg-[#121416] rounded-sm overflow-hidden">
-              <LeftUploadPanel
-                ref={uploadPanelRef}
-                onAnalyze={handleAnalyze}
-                onLoadSample={runSampleDemo}
-                isLoading={isLoading}
-                hasDocument={false}
-              />
+            <div className="w-full h-full p-4 flex flex-col overflow-hidden">
+              <div className="w-full h-full flex flex-col border border-[#2C3136] bg-[#121416] rounded-sm overflow-hidden">
+                <LeftUploadPanel
+                  ref={uploadPanelRef}
+                  onAnalyze={handleAnalyze}
+                  onLoadSample={runSampleDemo}
+                  isLoading={isLoading}
+                  hasDocument={false}
+                />
+              </div>
             </div>
           ) : (
             /* 50/50 SPLIT WORKSPACE WHEN DOCUMENT IS ACTIVE */
-            <>
+            <div className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden p-4 gap-4">
               {/* LEFT PANE: Document Canvas & Controls */}
               <div className="flex-1 flex flex-col border border-[#2C3136] bg-[#121416] relative h-full rounded-sm overflow-hidden">
                 {/* Header Bar with Change Resume, JD Toggle, Version, Undo & Download */}
@@ -927,7 +947,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({ onBackToHome }) =>
                 />
 
               </div>
-            </>
+            </div>
           )}
         </main>
       </div>
